@@ -231,9 +231,22 @@ private class Server(private val ctx: Context) : NanoHTTPD(Remote.PORT) {
             "/api/icon" -> Control.icon(ctx, s.parms["pkg"].orEmpty())
                 ?.let { newFixedLengthResponse(Response.Status.OK, "image/png", ByteArrayInputStream(it), it.size.toLong()) }
                 ?: newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "")
-            "/api/screen.jpg" -> Control.screenshot()
-                ?.let { newFixedLengthResponse(Response.Status.OK, "image/jpeg", ByteArrayInputStream(it), it.size.toLong()) }
-                ?: json(JSONObject().put("error", "The TV can't share its screen right now."), Response.Status.SERVICE_UNAVAILABLE)
+            "/api/profiles/photo" -> {
+                val id = s.parms["id"].orEmpty()
+                if (post) {
+                    val len = s.headers["content-length"]?.toIntOrNull() ?: 0
+                    if (len <= 0 || len > 8 * 1024 * 1024) return json(JSONObject().put("error", "Pick a smaller photo."), Response.Status.BAD_REQUEST)
+                    val buf = ByteArray(len)
+                    var r = 0
+                    while (r < len) { val n = s.inputStream.read(buf, r, len - r); if (n < 0) break; r += n }
+                    val ok = Control.setPhoto(ctx, id, buf.copyOf(r))
+                    return if (ok) json(JSONObject().put("ok", true))
+                    else json(JSONObject().put("error", "That photo couldn't be read."), Response.Status.BAD_REQUEST)
+                }
+                val f = Profiles.photoFile(ctx, id)
+                if (!f.exists()) newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "")
+                else newFixedLengthResponse(Response.Status.OK, "image/jpeg", f.inputStream(), f.length())
+            }
             else -> {
                 if (!post) return newFixedLengthResponse(Response.Status.METHOD_NOT_ALLOWED, MIME_PLAINTEXT, "")
                 val b = body(s)
@@ -244,8 +257,25 @@ private class Server(private val ctx: Context) : NanoHTTPD(Remote.PORT) {
                     "/api/text" -> Control.type(b.optString("text"), b.optBoolean("submit"))
                     "/api/launch" -> Control.launch(ctx, b.optString("pkg"))
                     "/api/settings" -> Control.settings(ctx, b)
-                    "/api/pin" -> return Control.pin(ctx, b)?.let { json(JSONObject().put("error", it), Response.Status.BAD_REQUEST) }
+                    "/api/profiles/add" -> {
+                        val (err, pr) = Control.addProfile(ctx, b)
+                        return if (err != null) json(JSONObject().put("error", err), Response.Status.BAD_REQUEST)
+                        else json(JSONObject().put("ok", true).put("profile", pr!!.json()))
+                    }
+                    "/api/profiles/pin" -> return Control.profilePin(ctx, b)?.let { json(JSONObject().put("error", it), Response.Status.BAD_REQUEST) }
                         ?: json(JSONObject().put("ok", true))
+                    "/api/profiles/update" -> {
+                        Profiles.update(prefs, b.optString("id"),
+                            name = b.optString("name").takeIf { b.has("name") },
+                            color = if (b.has("color")) b.getInt("color") else null)
+                        true
+                    }
+                    "/api/profiles/delete" -> {
+                        if (!Profiles.remove(ctx, prefs, b.optString("id")))
+                            return json(JSONObject().put("error", "Keep at least one profile."), Response.Status.BAD_REQUEST)
+                        true
+                    }
+                    "/api/profiles/photo/remove" -> Control.removePhoto(ctx, b.optString("id"))
                     "/api/setup/finish" -> {
                         if (!prefs.hasSecret) return json(JSONObject().put("error", "Set a PIN first."), Response.Status.BAD_REQUEST)
                         prefs.enabled = true

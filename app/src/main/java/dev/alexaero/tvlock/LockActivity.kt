@@ -17,8 +17,8 @@ class LockActivity : ComponentActivity() {
         silencer = Silencer(this)
         setContent { LockSurface(onLeave = ::leave) }
         lifecycleScope.launch {
-            combine(LockState.current, LockState.serviceRunning, LockState.overlayBroken) { l, s, broken ->
-                l == null || (s && !broken)
+            combine(LockState.current, LockState.serviceRunning, LockState.overlayBroken, LockState.greeting) { l, s, broken, hello ->
+                (l == null && hello == null) || (s && !broken)
             }
                 .collect { done -> if (done) finish() }
         }

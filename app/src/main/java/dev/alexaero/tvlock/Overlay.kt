@@ -47,7 +47,7 @@ class Overlay(private val ctx: Context, private val type: Int) {
             type,
             WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                 WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
-            PixelFormat.OPAQUE,
+            PixelFormat.TRANSLUCENT, // the unlock greeting fades into the app behind
         ).apply {
             gravity = Gravity.TOP or Gravity.START
             title = "TV Lock"

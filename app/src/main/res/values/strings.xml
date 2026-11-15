@@ -1,5 +1,5 @@
 <resources>
     <string name="app_name">TV Lock</string>
     <string name="service_label">TV Lock</string>
-    <string name="service_desc">Lets TV Lock show its PIN screen when the TV starts and when you open a locked app. It also lets a phone you paired with TV Lock control the TV, type into search boxes and show the TV screen. Nothing leaves your home network.</string>
+    <string name="service_desc">Lets TV Lock show its PIN screen when the TV starts and when you open a locked app. It also lets a phone you paired with TV Lock control the TV and type into search boxes. Nothing leaves your home network.</string>
 </resources>

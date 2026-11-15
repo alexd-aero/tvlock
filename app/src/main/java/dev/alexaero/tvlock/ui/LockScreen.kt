@@ -52,7 +52,24 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.border
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.graphicsLayer
 import dev.alexaero.tvlock.Lock
+import dev.alexaero.tvlock.Profile
+import dev.alexaero.tvlock.Profiles
 import dev.alexaero.tvlock.LockState
 import dev.alexaero.tvlock.Prefs
 import dev.alexaero.tvlock.Secret
@@ -68,20 +85,38 @@ import java.util.Date
 fun LockSurface(onLeave: () -> Unit) {
     TvLockTheme {
         val lock by LockState.current.collectAsState()
+        val hello by LockState.greeting.collectAsState()
         val ctx = LocalContext.current
-        val l = lock
-        if (l == null) {
-            Backdrop {}
-            return@TvLockTheme
+        // The PIN screen melts away and the greeting card springs in; then it all fades into the TV.
+        val phase: Any? = lock ?: hello
+        AnimatedContent(
+            targetState = phase,
+            transitionSpec = {
+                (fadeIn(tween(320, delayMillis = 90)) togetherWith
+                    (fadeOut(tween(260)) + scaleOut(tween(300), targetScale = 0.94f))).using(SizeTransform(clip = false))
+            },
+            label = "lock",
+        ) { ph ->
+            when (ph) {
+                is Lock -> LockFor(ph, onLeave)
+                is Profile -> Greeting(ph) { LockState.greeting.value = null }
+                else -> Box(Modifier.fillMaxSize())
+            }
         }
-        key(l) {
-            val noun = nounFor(Prefs(ctx).secretKind)
+    }
+}
+
+@Composable
+private fun LockFor(l: Lock, onLeave: () -> Unit) {
+    val ctx = LocalContext.current
+    key(l) {
+            val noun = nounFor(Profiles.padFor(Prefs(ctx)).first)
             when (l) {
                 Lock.Boot -> LockScreen(
                     title = "Welcome back",
                     subtitle = "Enter your $noun to use the TV",
                     onBack = null,
-                    onUnlocked = { LockState.unlock(ctx) },
+                    onUnlocked = { LockState.unlock(ctx, it) },
                 )
                 is Lock.App -> {
                     val (label, icon) = remember(l.pkg) { appInfo(ctx, l.pkg) }
@@ -91,7 +126,7 @@ fun LockSurface(onLeave: () -> Unit) {
                         icon = icon,
                         onBack = onLeave,
                         leaveLabel = "Go to home screen",
-                        onUnlocked = { LockState.unlock(ctx) },
+                        onUnlocked = { LockState.unlock(ctx, it) },
                     )
                 }
                 Lock.Test -> LockScreen(
@@ -100,9 +135,45 @@ fun LockSurface(onLeave: () -> Unit) {
                     test = true,
                     onBack = onLeave,
                     leaveLabel = "Stop test",
-                    onUnlocked = { LockState.unlock(ctx) },
+                    onUnlocked = { LockState.unlock(ctx, it) },
                 )
             }
+    }
+}
+
+/** "Hello, Name": their picture in a card in the middle, then everything fades into the TV. */
+@Composable
+fun Greeting(p: Profile, done: () -> Unit) {
+    val enter = remember { Animatable(0f) }
+    val out = remember { Animatable(0f) }
+    LaunchedEffect(p) {
+        enter.animateTo(1f, spring(dampingRatio = 0.68f, stiffness = Spring.StiffnessLow))
+        delay(1400)
+        out.animateTo(1f, tween(700, easing = FastOutSlowInEasing))
+        done()
+    }
+    Box(Modifier.fillMaxSize().graphicsLayer { alpha = 1f - out.value }) {
+        Backdrop {}
+        Column(
+            Modifier.align(Alignment.Center)
+                .graphicsLayer {
+                    val sc = (0.82f + 0.18f * enter.value) * (1f + 0.06f * out.value)
+                    scaleX = sc; scaleY = sc
+                    alpha = enter.value.coerceIn(0f, 1f)
+                    translationY = (1f - enter.value) * 40f
+                }
+                .shadow(40.dp, RoundedCornerShape(40.dp), ambientColor = C.caramel, spotColor = C.caramel)
+                .clip(RoundedCornerShape(40.dp))
+                .background(Brush.verticalGradient(listOf(Color(0xFF2A241D), Color(0xFF1C1814))))
+                .border(1.dp, C.cream.copy(alpha = 0.16f), RoundedCornerShape(40.dp))
+                .padding(horizontal = 72.dp, vertical = 48.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Avatar(p, 164.dp, glow = true)
+            Spacer(Modifier.height(28.dp))
+            Text("Hello, ${p.name}", fontSize = 44.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.6).sp, color = C.text)
+            Spacer(Modifier.height(6.dp))
+            Text("The TV is unlocked", style = MaterialTheme.typography.bodyLarge, color = C.dim)
         }
     }
 }
@@ -125,7 +196,7 @@ private fun appInfo(ctx: Context, pkg: String): Pair<String, ImageBitmap?> {
 fun LockScreen(
     title: String,
     subtitle: String,
-    onUnlocked: () -> Unit,
+    onUnlocked: (Profile) -> Unit,
     onBack: (() -> Unit)?,
     icon: ImageBitmap? = null,
     test: Boolean = false,
@@ -133,8 +204,10 @@ fun LockScreen(
 ) {
     val ctx = LocalContext.current
     val prefs = remember { Prefs(ctx) }
-    val kind = remember { prefs.secretKind }
-    val length = remember { prefs.pinLength }
+    val changed by Profiles.changed.collectAsState()
+    val pad = remember(changed) { Profiles.padFor(prefs) }
+    val kind = pad.first
+    val length = pad.second
     val entry = remember { Entry() }
     val scope = rememberCoroutineScope()
     var busy by remember { mutableStateOf(false) }
@@ -159,11 +232,11 @@ fun LockScreen(
         }
         busy = true
         scope.launch {
-            val ok = withContext(Dispatchers.Default) { Secret.check(prefs, s) }
+            val who = withContext(Dispatchers.Default) { Profiles.match(prefs, s) }
             busy = false
-            if (ok) {
+            if (who != null) {
                 Secret.recordSuccess(prefs)
-                onUnlocked()
+                onUnlocked(who)
             } else {
                 Secret.recordFail(prefs)
                 lockoutUntil = prefs.lockoutUntil

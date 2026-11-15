@@ -31,6 +31,16 @@ class TvApi(val host: String, var token: String? = null) {
         return read(c)
     }
 
+    fun upload(path: String, jpeg: ByteArray): JSONObject {
+        val c = open(path, 8000)
+        c.requestMethod = "POST"
+        c.doOutput = true
+        c.setRequestProperty("Content-Type", "image/jpeg")
+        c.setFixedLengthStreamingMode(jpeg.size)
+        c.outputStream.use { it.write(jpeg) }
+        return read(c)
+    }
+
     fun bytes(path: String): ByteArray? = runCatching {
         val c = open(path, 4000)
         if (c.responseCode in 200..299) c.inputStream.use { it.readBytes() } else null

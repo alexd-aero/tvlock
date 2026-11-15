@@ -17,6 +17,7 @@ import android.os.SystemClock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
@@ -96,9 +97,12 @@ class LockService : AccessibilityService() {
         watchIdle()
         if (prefs.bootLockDue()) LockState.current.value = Lock.Boot
         scope.launch {
-            LockState.current.collect { lock ->
-                if (lock == null) {
+            combine(LockState.current, LockState.greeting) { l, g -> l to g }.collect { (lock, hello) ->
+                if (lock == null && hello == null) {
                     overlay.hide()
+                    silencer.release()
+                } else if (lock == null) {
+                    // Unlocked: let the video resume while the greeting fades away.
                     silencer.release()
                 } else {
                     silencer.take()

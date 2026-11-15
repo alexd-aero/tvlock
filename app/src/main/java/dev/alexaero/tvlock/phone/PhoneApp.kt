@@ -364,8 +364,8 @@ private fun TvScreen(tv: FoundTv, back: () -> Unit, auto: () -> Unit, paired: (S
                 Spacer(Modifier.height(10.dp))
                 Text("Automatic setup", color = C.text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 Text(
-                    (if (tv.tvLock) "" else "Installs TV Lock on the TV, ") +
-                        "allows everything it needs and connects this phone. The TV asks once: press Allow with the remote.",
+                    (if (tv.tvLock) "Allows everything TV Lock needs on the TV" else "Installs TV Lock on the TV, allows everything it needs") +
+                        " and connects this phone. The TV asks once: press Allow with the remote.",
                     color = C.dim, fontSize = 15.sp, lineHeight = 21.sp,
                 )
                 Spacer(Modifier.height(4.dp))
@@ -611,14 +611,22 @@ private fun PinScreen(api: TvApi, back: () -> Unit, done: () -> Unit) {
     var b by remember { mutableStateOf("") }
     var err by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
+    var name by remember { mutableStateOf("") }
+    var photo by remember { mutableStateOf<ByteArray?>(null) }
+    val ctx = LocalContext.current
+    val pick = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.GetContent(),
+    ) { uri -> uri?.let { u -> photo = runCatching { squareJpeg(ctx, u) }.getOrNull() } }
+    val preview = remember(photo) { photo?.let { BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() } }
     val (k, len, _) = kinds[kind]
     val pw = k == "PASSWORD"
     Page(
-        step = "Finish setup", title = "Choose your PIN",
-        sub = "You'll enter it on the TV with the remote. A 4-digit PIN is the quickest.", onBack = back,
+        step = "Finish setup", title = "Create your profile",
+        sub = "Each person gets their own PIN, and the TV says hello to whoever unlocks it. You can add more people later.", onBack = back,
         bottom = {
             PButton("Save and lock the TV", {
                 err = when {
+                    name.isBlank() -> "Add your name."
                     a != b -> "Those don't match."
                     k == "PIN" && a.length != len -> "Enter exactly $len digits."
                     a.length < 4 -> "Use at least 4 characters."
@@ -629,7 +637,9 @@ private fun PinScreen(api: TvApi, back: () -> Unit, done: () -> Unit) {
                 scope.launch {
                     try {
                         withContext(Dispatchers.IO) {
-                            api.post("/api/pin", JSONObject().put("pin", a).put("kind", k))
+                            val pr = api.post("/api/profiles/add", JSONObject().put("name", name.trim()).put("pin", a).put("kind", k))
+                                .getJSONObject("profile")
+                            photo?.let { api.upload("/api/profiles/photo?id=" + Uri.encode(pr.getString("id")), it) }
                             api.post("/api/setup/finish")
                         }
                         done()
@@ -641,6 +651,26 @@ private fun PinScreen(api: TvApi, back: () -> Unit, done: () -> Unit) {
             }, icon = Icons.Rounded.Lock, primary = true, busy = busy)
         },
     ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier.size(88.dp).clip(CircleShape).background(dev.alexaero.tvlock.ui.avatarBrush(0)).clickable { pick.launch("image/*") },
+                contentAlignment = Alignment.Center,
+            ) {
+                if (preview != null) Image(preview, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                else if (name.isNotBlank()) Text(name.trim().first().uppercase(), color = C.focusText, fontSize = 36.sp, fontWeight = FontWeight.Bold)
+                else Icon(Icons.Rounded.AddAPhoto, "Add a photo", tint = C.focusText)
+            }
+            Spacer(Modifier.width(16.dp))
+            Column(Modifier.weight(1f)) {
+                Field(name, { name = it.take(24); err = null }, "Your name", KeyboardType.Text)
+                Text(if (photo == null) "Tap the circle to add a photo" else "Tap the circle to change the photo", color = C.dim, fontSize = 13.sp,
+                    modifier = Modifier.padding(top = 6.dp))
+            }
+        }
+        Spacer(Modifier.height(22.dp))
+        Text("Your PIN", color = C.text, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+        Text("You'll enter it on the TV with the remote. A 4-digit PIN is the quickest.", color = C.dim, fontSize = 14.sp)
+        Spacer(Modifier.height(12.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             kinds.forEachIndexed { i, (_, _, label) ->
                 val on = i == kind
@@ -679,6 +709,11 @@ private fun RemoteScreen(store: PhoneStore, forget: () -> Unit, find: () -> Unit
     val ctx = LocalContext.current
     var failed by remember { mutableStateOf(false) }
     var reload by remember { mutableIntStateOf(0) }
+    // Profile photos: the web remote's file picker opens the phone's gallery.
+    var pending by remember { mutableStateOf<android.webkit.ValueCallback<Array<Uri>>?>(null) }
+    val pick = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.GetContent(),
+    ) { uri -> pending?.onReceiveValue(uri?.let { arrayOf(it) }); pending = null }
     val version = remember { runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull() ?: "" }
     Backdrop {
         Box(Modifier.fillMaxSize().systemBarsPadding()) {
@@ -690,6 +725,16 @@ private fun RemoteScreen(store: PhoneStore, forget: () -> Unit, find: () -> Unit
                             settings.javaScriptEnabled = true
                             settings.domStorageEnabled = true
                             settings.userAgentString = settings.userAgentString + " TVLockApp/$version"
+                            webChromeClient = object : android.webkit.WebChromeClient() {
+                                override fun onShowFileChooser(
+                                    v: WebView, cb: android.webkit.ValueCallback<Array<Uri>>, p: FileChooserParams,
+                                ): Boolean {
+                                    pending?.onReceiveValue(null)
+                                    pending = cb
+                                    pick.launch("image/*")
+                                    return true
+                                }
+                            }
                             webViewClient = object : WebViewClient() {
                                 override fun shouldOverrideUrlLoading(v: WebView, r: WebResourceRequest): Boolean {
                                     val u = r.url
@@ -725,4 +770,14 @@ private fun RemoteScreen(store: PhoneStore, forget: () -> Unit, find: () -> Unit
             }
         }
     }
+}
+
+/** A picked photo as a 512 px square JPEG (the TV stores it as is). */
+private fun squareJpeg(ctx: android.content.Context, uri: Uri): ByteArray {
+    val bytes = ctx.contentResolver.openInputStream(uri)!!.use { it.readBytes() }
+    val src = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+    val side = minOf(src.width, src.height)
+    val sq = android.graphics.Bitmap.createBitmap(src, (src.width - side) / 2, (src.height - side) / 2, side, side)
+    val out = android.graphics.Bitmap.createScaledBitmap(sq, 512, 512, true)
+    return java.io.ByteArrayOutputStream().also { out.compress(android.graphics.Bitmap.CompressFormat.JPEG, 88, it) }.toByteArray()
 }

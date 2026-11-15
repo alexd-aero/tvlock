@@ -4,6 +4,7 @@ import android.view.KeyEvent as AKey
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -56,7 +57,7 @@ private val PAGE_V = 36.dp
  */
 private fun Modifier.page() = padding(horizontal = PAGE_H, vertical = PAGE_V)
 
-private enum class Screen { WELCOME, PERMISSIONS, MODE, APPS, KIND, CREATE, CONFIRM, TEST, HOME, OPTIONS, UPDATES, PHONE, SETUP_CHOICE, PHONE_SETUP }
+private enum class Screen { WELCOME, PERMISSIONS, MODE, APPS, KIND, CREATE, CONFIRM, TEST, HOME, OPTIONS, UPDATES, PHONE, SETUP_CHOICE, PHONE_SETUP, PROFILES, PROFILE, PROFILE_EDIT }
 
 @Composable
 fun TvLockApp(authed: MutableState<Boolean>, finish: () -> Unit, phoneSetup: Boolean = false) {
@@ -74,11 +75,16 @@ fun TvLockApp(authed: MutableState<Boolean>, finish: () -> Unit, phoneSetup: Boo
     var newLen by remember { mutableIntStateOf(4) }
     var firstTry by remember { mutableStateOf("") }
     var createMsg by remember { mutableStateOf<String?>(null) }
+    // Profile being created (editing == null) or changed.
+    var editing by remember { mutableStateOf<String?>(null) }
+    var newName by remember { mutableStateOf("") }
+    var newColor by remember { mutableIntStateOf(0) }
+    val who = remember(editing, newName) { Profiles.get(prefs, editing)?.name ?: newName }
 
     if (!setup && prefs.setupDone && !authed.value) {
         LockScreen(
             title = "TV Lock settings",
-            subtitle = "Enter your ${nounFor(prefs.secretKind)} to change the lock",
+            subtitle = "Enter your ${nounFor(Profiles.padFor(prefs).first)} to change the lock",
             onUnlocked = { authed.value = true },
             onBack = finish,
         )
@@ -97,22 +103,31 @@ fun TvLockApp(authed: MutableState<Boolean>, finish: () -> Unit, phoneSetup: Boo
                 Screen.SETUP_CHOICE -> SetupChoice(phone = { go(Screen.PHONE_SETUP) }, tv = { go(Screen.PERMISSIONS) })
                 Screen.PHONE_SETUP -> PhoneSetup(prefs, manual = { go(Screen.PERMISSIONS) }, close = finish)
                 Screen.PERMISSIONS -> Permissions(setup) { if (setup) go(Screen.MODE) else back() }
+                Screen.PROFILES -> ProfilesScreen(prefs, open = { editing = it; go(Screen.PROFILE) }) {
+                    editing = null; newName = ""; newColor = Profiles.list(prefs).size % Profiles.palette.size; go(Screen.PROFILE_EDIT)
+                }
+                Screen.PROFILE -> ProfileScreen(prefs, editing, pin = { go(Screen.KIND) }, edit = { go(Screen.PROFILE_EDIT) }, gone = ::back)
+                Screen.PROFILE_EDIT -> ProfileEdit(prefs, editing, if (setup) "Step 4 of 6" else null, newName, newColor) { name, color ->
+                    val id = editing
+                    if (id != null) { Profiles.update(prefs, id, name = name, color = color); back() }
+                    else { newName = name; newColor = color; go(Screen.KIND) }
+                }
                 Screen.MODE -> Mode(prefs, setup) {
                     if (!setup) prefs.markBootUnlocked()
                     when {
                         prefs.appLock -> go(Screen.APPS)
-                        setup -> go(Screen.KIND)
+                        setup -> { editing = null; go(Screen.PROFILE_EDIT) }
                         else -> back()
                     }
                 }
-                Screen.APPS -> AppPicker(prefs, setup) { if (setup) go(Screen.KIND) else home() }
-                Screen.KIND -> Kind(setup) { k, n -> newKind = k; newLen = n; createMsg = null; go(Screen.CREATE) }
+                Screen.APPS -> AppPicker(prefs, setup) { if (setup) { editing = null; go(Screen.PROFILE_EDIT) } else home() }
+                Screen.KIND -> Kind(setup, who) { k, n -> newKind = k; newLen = n; createMsg = null; go(Screen.CREATE) }
                 Screen.CREATE -> PadScreen(
-                    step = if (setup) "Step 4 of 5" else null,
+                    step = if (setup) "Step 5 of 6" else null,
                     title = when (newKind) {
-                        SecretKind.PIN -> "Create a $newLen-digit PIN"
-                        SecretKind.PIN_ANY -> "Create a PIN"
-                        SecretKind.PASSWORD -> "Create a password"
+                        SecretKind.PIN -> "$who's $newLen-digit PIN"
+                        SecretKind.PIN_ANY -> "$who's PIN"
+                        SecretKind.PASSWORD -> "$who's password"
                     },
                     sub = createMsg ?: when (newKind) {
                         SecretKind.PIN -> "Pick $newLen numbers you'll remember."
@@ -125,7 +140,7 @@ fun TvLockApp(authed: MutableState<Boolean>, finish: () -> Unit, phoneSetup: Boo
                 Screen.CONFIRM -> {
                     val scope = rememberCoroutineScope()
                     PadScreen(
-                        step = if (setup) "Step 4 of 5" else null,
+                        step = if (setup) "Step 5 of 6" else null,
                         title = "Enter it again",
                         sub = "Just to make sure.",
                         kind = newKind, length = newLen, key = "confirm",
@@ -136,14 +151,27 @@ fun TvLockApp(authed: MutableState<Boolean>, finish: () -> Unit, phoneSetup: Boo
                             return@PadScreen
                         }
                         scope.launch {
-                            withContext(Dispatchers.Default) { Secret.set(prefs, s, newKind, newLen) }
+                            val id = editing
+                            val err = withContext(Dispatchers.Default) {
+                                Profiles.validate(prefs, s, newKind, id) ?: run {
+                                    if (id == null) Profiles.add(prefs, newName, newColor, s, newKind)
+                                    else Profiles.setSecret(prefs, id, s, newKind)
+                                    null
+                                }
+                            }
+                            if (err != null) {
+                                createMsg = err
+                                back()
+                                return@launch
+                            }
                             authed.value = true
                             if (setup) {
                                 prefs.enabled = true
                                 prefs.markBootUnlocked()
                                 prefs.setupDone = true
                                 stack.clear(); stack.add(Screen.TEST)
-                            } else home()
+                            } else if (id == null) { stack.clear(); stack.add(Screen.HOME); stack.add(Screen.PROFILES) }
+                            else { stack.clear(); stack.add(Screen.HOME); stack.add(Screen.PROFILES); stack.add(Screen.PROFILE) }
                         }
                     }
                 }
@@ -223,7 +251,7 @@ private fun Permissions(setup: Boolean, next: () -> Unit) {
             Box(Modifier.weight(1f)) {
                 ScreenTitle(
                     "Allow TV Lock", "Two switches in the TV's Settings let the lock cover the screen.",
-                    if (setup) "Step 1 of 5" else null,
+                    if (setup) "Step 1 of 6" else null,
                 )
             }
             TvButton(
@@ -324,7 +352,7 @@ private fun Mode(prefs: Prefs, setup: Boolean, next: () -> Unit) {
         else -> 0
     }
     Column(Modifier.fillMaxSize().page()) {
-        ScreenTitle("What should TV Lock lock?", "You can change this later.", if (setup) "Step 2 of 5" else null)
+        ScreenTitle("What should TV Lock lock?", "You can change this later.", if (setup) "Step 2 of 6" else null)
         Spacer(Modifier.height(32.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
             val opts = listOf(
@@ -380,7 +408,7 @@ private fun AppPicker(prefs: Prefs, setup: Boolean, next: () -> Unit) {
                 ScreenTitle(
                     "Choose apps to lock",
                     "Tip: lock Settings and the Play Store too, so nobody can switch TV Lock off.",
-                    if (setup) "Step 3 of 5" else null,
+                    if (setup) "Step 3 of 6" else null,
                 )
             }
             TvButton(
@@ -442,11 +470,14 @@ private fun AppPicker(prefs: Prefs, setup: Boolean, next: () -> Unit) {
 // ---------------------------------------------------------------- PIN kind + entry
 
 @Composable
-private fun Kind(setup: Boolean, pick: (SecretKind, Int) -> Unit) {
+private fun Kind(setup: Boolean, who: String, pick: (SecretKind, Int) -> Unit) {
     val fr = remember { FocusRequester() }
     InitialFocus(fr)
     Column(Modifier.fillMaxSize().page()) {
-        ScreenTitle("Choose your lock", "A 4-digit PIN is the default and the quickest with a remote.", if (setup) "Step 4 of 5" else null)
+        ScreenTitle(
+            if (who.isBlank()) "Choose the lock" else "How will $who unlock?",
+            "A 4-digit PIN is the default and the quickest with a remote.", if (setup) "Step 5 of 6" else null,
+        )
         Spacer(Modifier.height(26.dp))
         val opts = listOf(
             listOf(Icons.Rounded.Pin, "4-digit PIN", "Default", SecretKind.PIN, 4),
@@ -538,7 +569,7 @@ private fun TestScreen(prefs: Prefs, setup: Boolean, done: () -> Unit) {
     val finish = remember { FocusRequester() }
     LaunchedEffect(Unit) { LockState.testResult.value = null }
     InitialFocus(if (result == true) finish else fr, result)
-    val noun = nounFor(prefs.secretKind)
+    val noun = nounFor(Profiles.padFor(prefs).first)
     val firstApp = prefs.lockedApps.firstOrNull()
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).page()) {
@@ -547,7 +578,7 @@ private fun TestScreen(prefs: Prefs, setup: Boolean, done: () -> Unit) {
                 ScreenTitle(
                     if (setup) "You're all set. Try it out" else "Test the lock",
                     "Make sure your $noun works before you rely on it.",
-                    if (setup) "Step 5 of 5" else null,
+                    if (setup) "Step 6 of 6" else null,
                 )
             }
             TvButton(if (setup) "Next" else "Done", done, icon = if (setup) Icons.AutoMirrored.Rounded.ArrowForward else Icons.Rounded.Check, primary = result == true, focusRequester = finish)
@@ -654,11 +685,9 @@ private fun Home(prefs: Prefs, open: (Screen) -> Unit) {
         }
     }
     LaunchedEffect(Unit) { if (Updater.state.value == Updater.State.Idle) Updater.check(ctx) }
-    val noun = nounFor(prefs.secretKind)
-    val kindText = when (prefs.secretKind) {
-        SecretKind.PIN -> "${prefs.pinLength}-digit PIN"
-        SecretKind.PIN_ANY -> "PIN, any length"
-        SecretKind.PASSWORD -> "Password"
+    val profChanges by Profiles.changed.collectAsState()
+    val people = remember(tick, profChanges) {
+        Profiles.list(prefs).map { it.name }.let { if (it.size <= 3) it.joinToString(", ") else "${it.size} people" }
     }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).page()) {
@@ -694,7 +723,7 @@ private fun Home(prefs: Prefs, open: (Screen) -> Unit) {
         val cards = buildList {
             add(Triple(Icons.Rounded.Tune, "What's locked", summary.removePrefix("Locks ").replaceFirstChar { it.uppercase() }) to Screen.MODE)
             if (prefs.appLock) add(Triple(Icons.Rounded.Apps, "Locked apps", "${prefs.lockedApps.size} chosen") to Screen.APPS)
-            add(Triple(Icons.Rounded.Pin, "Change $noun", kindText) to Screen.KIND)
+            add(Triple(Icons.Rounded.People, "Profiles", people) to Screen.PROFILES)
             add(Triple(Icons.Rounded.Science, "Test the lock", "Try it safely") to Screen.TEST)
             add(Triple(Icons.Rounded.Settings, "Options", "Sleep, inputs, relock") to Screen.OPTIONS)
             add(Triple(Icons.Rounded.PhoneAndroid, "Phone", phones) to Screen.PHONE)
@@ -1213,6 +1242,171 @@ private fun PhoneSetup(prefs: Prefs, manual: () -> Unit, close: () -> Unit) {
                 }
                 if (p != null && !running) TvButton("Allow here", { Perms.openAccessibility(ctx) }, primary = true)
             }
+        }
+    }
+}
+
+// ---------------------------------------------------------------- profiles
+
+@Composable
+private fun ProfilesScreen(prefs: Prefs, open: (String) -> Unit, add: () -> Unit) {
+    val changed by Profiles.changed.collectAsState()
+    val list = remember(changed) { Profiles.list(prefs) }
+    val fr = remember { FocusRequester() }
+    InitialFocus(fr)
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).page()) {
+        ScreenTitle("Profiles", "Everyone gets their own PIN. The TV says hello to whoever unlocks it.")
+        Spacer(Modifier.height(28.dp))
+        (list.map { it as Any } + Unit).chunked(4).forEachIndexed { r, row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                row.forEachIndexed { i, item ->
+                    val first = r == 0 && i == 0
+                    TvSurface(
+                        { if (item is Profile) open(item.id) else add() },
+                        Modifier.weight(1f).height(230.dp), RoundedCornerShape(26.dp), scale = 1.06f,
+                        focusRequester = if (first) fr else null,
+                    ) { focused ->
+                        Column(Modifier.fillMaxSize().padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center) {
+                            if (item is Profile) {
+                                Avatar(item, 104.dp)
+                                Spacer(Modifier.height(16.dp))
+                                Text(item.name, style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(item.kindText, style = MaterialTheme.typography.bodyMedium,
+                                    color = if (focused) C.focusText.copy(alpha = .7f) else C.dim)
+                            } else {
+                                Box(
+                                    Modifier.size(104.dp).clip(CircleShape)
+                                        .border(2.dp, if (focused) C.focusText.copy(alpha = .4f) else C.cardLine, CircleShape),
+                                    contentAlignment = Alignment.Center,
+                                ) { Icon(Icons.Rounded.Add, null, Modifier.size(44.dp)) }
+                                Spacer(Modifier.height(16.dp))
+                                Text("Add profile", style = MaterialTheme.typography.titleLarge)
+                                Text("Their own PIN", style = MaterialTheme.typography.bodyMedium,
+                                    color = if (focused) C.focusText.copy(alpha = .7f) else C.dim)
+                            }
+                        }
+                    }
+                }
+                repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+            }
+            Spacer(Modifier.height(20.dp))
+        }
+        Text(
+            "Add photos from the TV Lock app or the web remote on your phone (TV Lock → Phone).",
+            style = MaterialTheme.typography.bodyMedium, color = C.dim,
+        )
+    }
+}
+
+@Composable
+private fun ProfileScreen(prefs: Prefs, id: String?, pin: () -> Unit, edit: () -> Unit, gone: () -> Unit) {
+    val ctx = LocalContext.current
+    val changed by Profiles.changed.collectAsState()
+    val p = remember(changed, id) { Profiles.get(prefs, id) }
+    val count = remember(changed) { Profiles.list(prefs).size }
+    var confirmDelete by remember { mutableStateOf(false) }
+    val fr = remember { FocusRequester() }
+    InitialFocus(fr)
+    if (p == null) { LaunchedEffect(Unit) { gone() }; return }
+    Row(Modifier.fillMaxSize().page(), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.width(340.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Avatar(p, 190.dp, glow = true)
+            Spacer(Modifier.height(24.dp))
+            Text(p.name, style = MaterialTheme.typography.displaySmall)
+            Text(p.kindText, style = MaterialTheme.typography.bodyLarge, color = C.dim)
+        }
+        Spacer(Modifier.width(56.dp))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            ActionRow(Icons.Rounded.Pin, "Change PIN", "A new PIN or password for ${p.name}", fr, pin)
+            ActionRow(Icons.Rounded.Edit, "Name and colour", "Photos can be added from your phone", null, edit)
+            if (count > 1) ActionRow(
+                Icons.Rounded.DeleteOutline,
+                if (confirmDelete) "Press again to delete ${p.name}" else "Delete profile",
+                if (confirmDelete) "Their PIN will stop working" else "Remove ${p.name} and their PIN", null,
+            ) {
+                if (confirmDelete) { Profiles.remove(ctx, prefs, p.id); gone() } else confirmDelete = true
+            }
+        }
+    }
+}
+
+@Composable
+private fun ActionRow(icon: ImageVector, title: String, desc: String, fr: FocusRequester?, onClick: () -> Unit) {
+    TvSurface(onClick, Modifier.fillMaxWidth(), RoundedCornerShape(22.dp), scale = 1.03f, focusRequester = fr) { focused ->
+        Row(Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+            Badge(icon, 46.dp)
+            Spacer(Modifier.width(16.dp))
+            Column {
+                Text(title, style = MaterialTheme.typography.titleLarge)
+                Text(desc, style = MaterialTheme.typography.bodyMedium, color = if (focused) C.focusText.copy(alpha = .7f) else C.dim)
+            }
+        }
+    }
+}
+
+/** Name (with the on-screen keyboard) and colour for a new or existing profile. */
+@Composable
+private fun ProfileEdit(prefs: Prefs, id: String?, step: String?, startName: String, startColor: Int, done: (String, Int) -> Unit) {
+    val existing = remember(id) { Profiles.get(prefs, id) }
+    val entry = remember { Entry().apply { text = existing?.name ?: startName } }
+    var color by remember { mutableIntStateOf(existing?.color ?: startColor) }
+    var err by remember { mutableStateOf(false) }
+    val first = remember { FocusRequester() }
+    InitialFocus(first)
+    fun submit() {
+        val n = entry.text.trim()
+        if (n.isEmpty()) { err = true; entry.shakes++; return }
+        done(n.take(24), color)
+    }
+    Row(
+        Modifier.fillMaxSize().page().onPreviewKeyEvent { e ->
+            if (e.nativeKeyEvent.keyCode == AKey.KEYCODE_BACK) false else typeKey(e, SecretKind.PASSWORD, entry, ::submit)
+        },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f).padding(end = 28.dp)) {
+            ScreenTitle(
+                when { existing != null -> "Edit ${existing.name}"; step != null -> "Create your profile"; else -> "New profile" },
+                if (existing != null) null else "Each person gets their own PIN, and the TV greets them by name.", step,
+            )
+            Spacer(Modifier.height(24.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                AvatarOf(existing?.id, entry.text.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "?", color,
+                    existing?.photo ?: 0, 96.dp, glow = true)
+                Spacer(Modifier.width(22.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("NAME", style = MaterialTheme.typography.labelLarge, color = C.caramel)
+                    Spacer(Modifier.height(6.dp))
+                    Box(
+                        Modifier.fillMaxWidth().height(56.dp).clip(RoundedCornerShape(14.dp)).background(Color(0x1AFFFFFF))
+                            .border(2.dp, if (err) C.error else C.cream.copy(alpha = 0.2f), RoundedCornerShape(14.dp))
+                            .padding(horizontal = 18.dp),
+                        contentAlignment = Alignment.CenterStart,
+                    ) {
+                        if (entry.text.isEmpty()) Text("Their name", color = C.dim, style = MaterialTheme.typography.titleLarge)
+                        else Text(entry.text + "|", style = MaterialTheme.typography.titleLarge, maxLines = 1)
+                    }
+                }
+            }
+            Spacer(Modifier.height(22.dp))
+            Text("COLOUR", style = MaterialTheme.typography.labelLarge, color = C.caramel)
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                Profiles.palette.indices.forEach { i ->
+                    TvSurface({ color = i }, Modifier.size(46.dp), CircleShape, color = Color.Transparent, selected = i == color, scale = 1.18f) {
+                        Box(Modifier.padding(4.dp).fillMaxSize().clip(CircleShape).background(avatarBrush(i)))
+                    }
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+            Text(
+                "Photos can be added from the TV Lock app or the web remote on your phone.",
+                style = MaterialTheme.typography.bodyMedium, color = C.dim,
+            )
+        }
+        Box(Modifier.width(470.dp), contentAlignment = Alignment.Center) {
+            EntryPad(SecretKind.PASSWORD, entry, ::submit, first)
         }
     }
 }

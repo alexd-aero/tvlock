@@ -4,6 +4,5 @@
     android:accessibilityFeedbackType="feedbackVisual"
     android:accessibilityFlags="flagDefault"
     android:canRetrieveWindowContent="true"
-    android:canTakeScreenshot="true"
     android:notificationTimeout="50"
     android:description="@string/service_desc" />

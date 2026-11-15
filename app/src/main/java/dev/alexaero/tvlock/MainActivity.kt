@@ -13,6 +13,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // "phoneUi" (from adb) shows the phone companion on a TV, for testing it without a phone.
+        if (intent.getBooleanExtra("phoneUi", false)) {
+            setContent { TvLockTheme { dev.alexaero.tvlock.phone.PhoneApp(intent.data) } }
+            return
+        }
         if (!Platform.isTv(this)) {
             // The same APK is the phone companion: no lock service or boot lock on a phone.
             Platform.disableTvParts(this)

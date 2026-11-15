@@ -14,7 +14,6 @@ import android.os.Looper
 import android.os.PowerManager
 import android.os.SystemClock
 import android.provider.Settings
-import android.view.Display
 import android.view.KeyEvent
 import android.view.View
 import android.view.accessibility.AccessibilityNodeInfo
@@ -23,18 +22,13 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.Executors
 import java.util.concurrent.FutureTask
 import java.util.concurrent.TimeUnit
 
 /** What a paired phone can do to the TV. Called from the web server's threads. */
 object Control {
     private val main = Handler(Looper.getMainLooper())
-    private val shotExec = Executors.newSingleThreadExecutor()
     private val icons = ConcurrentHashMap<String, ByteArray>()
-    @Volatile private var lastShot: ByteArray? = null
-    @Volatile private var lastShotAt = 0L
 
     private fun <T> onMain(block: () -> T): T {
         if (Looper.myLooper() == Looper.getMainLooper()) return block()
@@ -54,7 +48,6 @@ object Control {
             .put("version", Updater.current(ctx))
             .put("android", Build.VERSION.RELEASE)
             .put("service", svc != null)
-            .put("screen", svc != null && Build.VERSION.SDK_INT >= 30)
             .put("awake", ctx.getSystemService(PowerManager::class.java).isInteractive)
             .put("lock", when (lock) { Lock.Boot -> "tv"; is Lock.App -> "app"; Lock.Test -> "test"; null -> null })
             .put("lockApp", (lock as? Lock.App)?.let { Apps.label(ctx, it.pkg) })
@@ -63,11 +56,14 @@ object Control {
         val settings = JSONObject()
             .put("enabled", p.enabled).put("bootLock", p.bootLock).put("appLock", p.appLock)
             .put("lockOnWake", p.lockOnWake).put("relockOnHome", p.relockOnHome).put("idleMinutes", p.idleMinutes)
-            .put("kind", p.secretKind.name).put("pinLength", p.pinLength)
+            .put("kind", Profiles.padFor(p).first.name).put("pinLength", Profiles.padFor(p).second)
             .put("lockedApps", JSONArray(p.lockedApps.toList()))
         val devices = JSONArray()
         Devices.list(p).forEach { devices.put(it.json(it.id == me.id)) }
+        val profiles = JSONArray()
+        Profiles.list(p).forEach { profiles.put(it.json()) }
         return JSONObject().put("tv", tv).put("settings", settings).put("devices", devices).put("me", me.json(true))
+            .put("profiles", profiles)
     }
 
     // ------------------------------------------------------------- lock
@@ -186,39 +182,6 @@ object Control {
         }
     }
 
-    /** A JPEG of what the TV shows (Android 11+). Protected video shows black, as Android requires. */
-    fun screenshot(): ByteArray? {
-        val s = svc ?: return null
-        if (Build.VERSION.SDK_INT < 30) return null
-        if (SystemClock.elapsedRealtime() - lastShotAt < 400) return lastShot
-        val latch = CountDownLatch(1)
-        main.post {
-            s.takeScreenshot(Display.DEFAULT_DISPLAY, shotExec, object : AccessibilityService.TakeScreenshotCallback {
-                override fun onSuccess(r: AccessibilityService.ScreenshotResult) {
-                    try {
-                        val hw = Bitmap.wrapHardwareBuffer(r.hardwareBuffer, r.colorSpace)
-                        val soft = hw?.copy(Bitmap.Config.ARGB_8888, false)
-                        r.hardwareBuffer.close()
-                        if (soft != null) {
-                            val w = 960
-                            val scaled = Bitmap.createScaledBitmap(soft, w, soft.height * w / soft.width, true)
-                            val out = ByteArrayOutputStream()
-                            scaled.compress(Bitmap.CompressFormat.JPEG, 70, out)
-                            lastShot = out.toByteArray()
-                            lastShotAt = SystemClock.elapsedRealtime()
-                        }
-                    } finally {
-                        latch.countDown()
-                    }
-                }
-
-                override fun onFailure(errorCode: Int) = latch.countDown()
-            })
-        }
-        latch.await(4, TimeUnit.SECONDS)
-        return lastShot
-    }
-
     // ------------------------------------------------------------- apps
 
     fun apps(ctx: Context): JSONArray {
@@ -266,19 +229,50 @@ object Control {
         return true
     }
 
-    /** New PIN/password from the phone. Returns an error message, or null when saved. */
-    fun pin(ctx: Context, b: JSONObject): String? {
-        val kind = runCatching { SecretKind.valueOf(b.optString("kind", "PIN")) }.getOrDefault(SecretKind.PIN)
+    // ------------------------------------------------------------- profiles
+
+    private fun kindOf(b: JSONObject) = runCatching { SecretKind.valueOf(b.optString("kind", "PIN")) }.getOrDefault(SecretKind.PIN)
+
+    /** New profile. Returns an error message, or null. */
+    fun addProfile(ctx: Context, b: JSONObject): Pair<String?, Profile?> {
+        val p = Prefs(ctx)
+        val name = b.optString("name").trim()
+        if (name.isEmpty()) return "Give the profile a name." to null
+        val kind = kindOf(b)
         val s = b.optString("pin")
-        val len = s.length
-        when (kind) {
-            SecretKind.PIN, SecretKind.PIN_ANY -> {
-                if (!s.all { it.isDigit() }) return "A PIN can only have numbers."
-                if (len !in 4..16) return "Use 4 to 16 digits."
-            }
-            SecretKind.PASSWORD -> if (len !in 4..32) return "Use 4 to 32 characters."
-        }
-        Secret.set(Prefs(ctx), s, kind, if (kind == SecretKind.PIN) len else 0)
+        Profiles.validate(p, s, kind)?.let { return it to null }
+        val count = Profiles.list(p).size
+        return null to Profiles.add(p, name, b.optInt("color", count % Profiles.palette.size), s, kind)
+    }
+
+    fun profilePin(ctx: Context, b: JSONObject): String? {
+        val p = Prefs(ctx)
+        val id = b.optString("id")
+        if (Profiles.get(p, id) == null) return "No such profile."
+        val kind = kindOf(b)
+        val s = b.optString("pin")
+        Profiles.validate(p, s, kind, id)?.let { return it }
+        Profiles.setSecret(p, id, s, kind)
         return null
     }
+
+    /** Saves an uploaded photo as a 512 px square JPEG. */
+    fun setPhoto(ctx: Context, id: String, bytes: ByteArray): Boolean {
+        val p = Prefs(ctx)
+        if (Profiles.get(p, id) == null) return false
+        val src = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return false
+        val side = minOf(src.width, src.height)
+        val sq = Bitmap.createBitmap(src, (src.width - side) / 2, (src.height - side) / 2, side, side)
+        val out = Bitmap.createScaledBitmap(sq, 512, 512, true)
+        Profiles.photoFile(ctx, id).outputStream().use { out.compress(Bitmap.CompressFormat.JPEG, 88, it) }
+        Profiles.update(p, id, photo = System.currentTimeMillis())
+        return true
+    }
+
+    fun removePhoto(ctx: Context, id: String): Boolean {
+        Profiles.photoFile(ctx, id).delete()
+        Profiles.update(Prefs(ctx), id, photo = 0)
+        return true
+    }
+
 }

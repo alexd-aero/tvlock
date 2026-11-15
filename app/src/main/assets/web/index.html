@@ -54,8 +54,6 @@ font-weight:600;display:inline-flex;align-items:center;justify-content:center;ga
 .note{display:flex;gap:12px;align-items:flex-start;color:var(--dim);font-size:14px}
 .note svg{color:var(--warn);margin-top:1px}
 /* remote */
-.screen{width:100%;aspect-ratio:16/9;border-radius:20px;background:#000 center/cover;border:1px solid var(--line);display:grid;place-items:center;color:var(--dim);font-size:14px;overflow:hidden}
-.screen img{width:100%;height:100%;object-fit:contain;display:block}
 .dpad{position:relative;width:min(80vw,300px);aspect-ratio:1;margin:22px auto 10px;border-radius:50%;background:var(--card);border:1px solid var(--line);
 box-shadow:inset 0 0 40px rgba(0,0,0,.35)}
 .dpad button{position:absolute;border:0;background:transparent;display:grid;place-items:center;color:var(--latte);border-radius:50%;width:30%;height:30%}
@@ -98,6 +96,12 @@ select{appearance:none}
 .dev:first-of-type{border-top:0}
 .dev .t{flex:1}.dev .t span{color:var(--dim);font-size:13px;display:block}
 .small{font-size:13px;color:var(--dim)}
+.av{width:52px;height:52px;border-radius:50%;flex:none;display:grid;place-items:center;font-weight:800;font-size:22px;color:var(--ink);overflow:hidden;background-size:cover;background-position:center}
+.prof{display:flex;align-items:center;gap:14px;padding:14px 0;border-top:1px solid var(--line)}
+.prof:first-child{border-top:0}
+.prof .t{flex:1;min-width:0}.prof .t b{display:block;font-size:17px}.prof .t span{color:var(--dim);font-size:13px}
+.prof .acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.mini{min-height:38px;padding:0 14px;font-size:14px}
 .err{color:var(--err);font-size:14px;min-height:20px;margin:8px 0 0}
 /* tabs */
 .tabs{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:center;gap:6px;padding:10px 14px calc(12px + env(safe-area-inset-bottom));
@@ -182,12 +186,6 @@ background:var(--cream);color:var(--ink);padding:12px 18px;border-radius:16px;fo
 
   <!-- Remote -->
   <section id="t-remote" class="tab" hidden>
-    <div class="card" style="padding:14px">
-      <div class="row" id="screen-toggle" style="padding:2px 4px 12px;border:0">
-        <div class="t"><b>Show the TV screen</b><span>Refreshes about once a second</span></div><span class="pill" id="screen-pill"></span>
-      </div>
-      <div class="screen" id="screen" hidden><span>Connecting…</span></div>
-    </div>
     <div class="dpad">
       <button class="u" data-key="up" data-repeat><svg viewBox="0 0 24 24"><path d="M7.4 15.4 12 10.8l4.6 4.6L18 14l-6-6-6 6z"/></svg></button>
       <button class="l" data-key="left" data-repeat><svg viewBox="0 0 24 24"><path d="M15.4 16.6 10.8 12l4.6-4.6L14 6l-6 6 6 6z"/></svg></button>
@@ -239,16 +237,23 @@ background:var(--cream);color:var(--ink);padding:12px 18px;border-radius:16px;fo
         <select id="idle" style="width:auto;height:44px"><option value="0">Never</option><option value="5">5 min</option><option value="10">10 min</option><option value="20">20 min</option><option value="30">30 min</option><option value="60">1 hour</option></select></div>
     </div>
     <div class="card">
-      <h2>Change PIN</h2>
-      <p class="sub small" id="pin-now" style="margin-bottom:12px"></p>
-      <select id="pin-kind" style="margin-bottom:10px">
-        <option value="PIN:4">4-digit PIN</option><option value="PIN:6">6-digit PIN</option>
-        <option value="PIN_ANY:0">PIN of any length (4–16)</option><option value="PASSWORD:0">Password</option>
-      </select>
-      <input id="pin-a" type="password" inputmode="numeric" placeholder="New PIN" autocomplete="new-password" style="margin-bottom:10px">
-      <input id="pin-b" type="password" inputmode="numeric" placeholder="Enter it again" autocomplete="new-password">
-      <p class="err" id="pin-err"></p>
-      <button class="btn primary wide" id="pin-go">Save new PIN</button>
+      <h2>Profiles</h2>
+      <p class="sub small" style="margin-bottom:6px">Everyone gets their own PIN. The TV says hello to whoever unlocks it.</p>
+      <div id="profiles"></div>
+      <button class="btn wide" id="prof-add" style="margin-top:12px"><svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>Add profile</button>
+      <div id="prof-form" hidden style="margin-top:14px">
+        <h2 id="pf-title" style="font-size:17px">New profile</h2>
+        <input id="pf-name" maxlength="24" placeholder="Name" autocomplete="off" style="margin:8px 0 10px">
+        <select id="pf-kind" style="margin-bottom:10px">
+          <option value="PIN:4">4-digit PIN</option><option value="PIN:6">6-digit PIN</option>
+          <option value="PIN_ANY:0">PIN of any length (4–16)</option><option value="PASSWORD:0">Password</option>
+        </select>
+        <input id="pf-a" type="password" inputmode="numeric" placeholder="PIN" autocomplete="new-password" style="margin-bottom:10px">
+        <input id="pf-b" type="password" inputmode="numeric" placeholder="Enter it again" autocomplete="new-password">
+        <p class="err" id="pf-err"></p>
+        <div class="grid2"><button class="btn" id="pf-cancel">Cancel</button><button class="btn primary" id="pf-save">Save</button></div>
+      </div>
+      <input type="file" id="pf-file" accept="image/*" hidden>
     </div>
     <div class="card">
       <h2>Phones</h2>
@@ -390,10 +395,9 @@ function render() {
   $('#sum-now').textContent = 'TV Lock ' + tv.version + ' · ' + (tv.address || '');
   $$('[data-set]').forEach(p => p.classList.toggle('on', !!s[p.dataset.set]));
   if (document.activeElement !== $('#idle')) $('#idle').value = String(s.idleMinutes);
-  $('#pin-now').textContent = 'Now: ' + ({ PIN: s.pinLength + '-digit PIN', PIN_ANY: 'PIN of any length', PASSWORD: 'password' })[s.kind];
   $('#about').textContent = tv.name + ' · Android ' + tv.android + ' · TV Lock ' + tv.version;
   renderDevices();
-  $('#screen-toggle').style.display = tv.screen ? '' : 'none';
+  renderProfiles();
 }
 
 function renderDevices() {
@@ -430,20 +434,92 @@ $$('[data-set]').forEach(p => (p.closest('.row') || p).addEventListener('click',
   await api('/api/settings', { [k]: v }); poll();
 }));
 $('#idle').onchange = async e => { await api('/api/settings', { idleMinutes: +e.target.value }); toast('Saved'); poll(); };
-$('#pin-kind').onchange = () => {
-  const pw = $('#pin-kind').value.startsWith('PASSWORD');
-  ['#pin-a', '#pin-b'].forEach(s => { $(s).inputMode = pw ? 'text' : 'numeric'; });
-  $('#pin-a').placeholder = pw ? 'New password' : 'New PIN';
+// profiles
+const PAL = [['#F4EBD9','#DCC7A6'],['#E2B98C','#C89B6D'],['#D9E4C6','#AFC191'],['#F2CFC4','#DDA192'],['#D3E0EE','#A4BCD6'],['#E5D9F2','#C0A9DD']];
+const photoCache = {};
+async function photoUrl(p) {
+  const k = p.id + ':' + p.photo;
+  if (!p.photo) return null;
+  if (!photoCache[k]) {
+    const r = await api('/api/profiles/photo?id=' + encodeURIComponent(p.id));
+    photoCache[k] = r.ok ? URL.createObjectURL(await r.blob()) : null;
+  }
+  return photoCache[k];
+}
+function avatar(p) {
+  const el = document.createElement('div'); el.className = 'av';
+  const c = PAL[p.color % PAL.length]; el.style.background = `linear-gradient(135deg,${c[0]},${c[1]})`;
+  el.textContent = (p.name.trim()[0] || '?').toUpperCase();
+  photoUrl(p).then(u => { if (u) { el.textContent = ''; el.style.background = `center/cover url(${u})`; } });
+  return el;
+}
+let pfMode = null; // {add:true} or {id, name}
+let photoFor = null;
+function kindLabel(p) { return ({ PIN: p.pinLength + '-digit PIN', PIN_ANY: 'PIN', PASSWORD: 'Password' })[p.kind]; }
+function renderProfiles() {
+  const box = $('#profiles'), sig = JSON.stringify(state.profiles);
+  if (box.dataset.sig === sig) return;
+  box.dataset.sig = sig; box.innerHTML = '';
+  state.profiles.forEach(p => {
+    const row = document.createElement('div'); row.className = 'prof';
+    row.appendChild(avatar(p));
+    const t = document.createElement('div'); t.className = 't';
+    t.innerHTML = '<b></b><span></span><div class="acts"></div>';
+    t.querySelector('b').textContent = p.name; t.querySelector('span').textContent = kindLabel(p);
+    const acts = t.querySelector('.acts');
+    const btn = (label, fn, cls = '') => { const b = document.createElement('button'); b.className = 'btn mini ' + cls; b.textContent = label; b.onclick = fn; acts.appendChild(b); };
+    btn(p.photo ? 'Change photo' : 'Add photo', () => { photoFor = p.id; $('#pf-file').value = ''; $('#pf-file').click(); });
+    if (p.photo) btn('Remove photo', async () => { await api('/api/profiles/photo/remove', { id: p.id }); poll(); });
+    btn('Rename', async () => { const n = prompt('Name', p.name); if (n && n.trim()) { await api('/api/profiles/update', { id: p.id, name: n.trim() }); poll(); } });
+    btn('Colour', async () => { await api('/api/profiles/update', { id: p.id, color: (p.color + 1) % PAL.length }); poll(); });
+    btn('Change PIN', () => openForm({ id: p.id, name: p.name }));
+    if (state.profiles.length > 1) btn('Delete', async () => {
+      if (!confirm('Delete ' + p.name + '? Their PIN will stop working.')) return;
+      const r = await api('/api/profiles/delete', { id: p.id }); if (!r.ok) toast((await r.json()).error); poll();
+    }, 'danger');
+    row.appendChild(t); box.appendChild(row);
+  });
+}
+function openForm(mode) {
+  pfMode = mode;
+  $('#prof-form').hidden = false; $('#prof-add').hidden = true;
+  $('#pf-title').textContent = mode.add ? 'New profile' : 'New PIN for ' + mode.name;
+  $('#pf-name').hidden = !mode.add; $('#pf-name').value = '';
+  $('#pf-a').value = $('#pf-b').value = ''; $('#pf-err').textContent = '';
+  (mode.add ? $('#pf-name') : $('#pf-a')).focus();
+}
+function closeForm() { $('#prof-form').hidden = true; $('#prof-add').hidden = false; pfMode = null; }
+$('#prof-add').onclick = () => openForm({ add: true });
+$('#pf-cancel').onclick = closeForm;
+$('#pf-kind').onchange = () => {
+  const pw = $('#pf-kind').value.startsWith('PASSWORD');
+  ['#pf-a', '#pf-b'].forEach(s => { $(s).inputMode = pw ? 'text' : 'numeric'; });
+  $('#pf-a').placeholder = pw ? 'Password' : 'PIN';
 };
-$('#pin-go').onclick = async () => {
-  const [kind, len] = $('#pin-kind').value.split(':'), a = $('#pin-a').value, b = $('#pin-b').value;
-  const err = $('#pin-err'); err.textContent = '';
+$('#pf-save').onclick = async () => {
+  const [kind, len] = $('#pf-kind').value.split(':'), a = $('#pf-a').value, b = $('#pf-b').value, err = $('#pf-err');
+  err.textContent = '';
+  if (pfMode.add && !$('#pf-name').value.trim()) { err.textContent = 'Give the profile a name.'; return; }
   if (a !== b) { err.textContent = "Those don't match."; return; }
   if (kind === 'PIN' && a.length !== +len) { err.textContent = 'Enter exactly ' + len + ' digits.'; return; }
-  const r = await api('/api/pin', { pin: a, kind });
+  const r = pfMode.add
+    ? await api('/api/profiles/add', { name: $('#pf-name').value.trim(), pin: a, kind })
+    : await api('/api/profiles/pin', { id: pfMode.id, pin: a, kind });
   const j = await r.json();
   if (!r.ok) { err.textContent = j.error; return; }
-  $('#pin-a').value = $('#pin-b').value = ''; toast('New PIN saved'); poll();
+  toast(pfMode.add ? 'Profile added' : 'New PIN saved'); closeForm(); poll();
+};
+// Photos are shrunk on the phone before upload.
+$('#pf-file').onchange = async e => {
+  const f = e.target.files[0]; if (!f || !photoFor) return;
+  try {
+    const img = await createImageBitmap(f);
+    const side = Math.min(img.width, img.height), c = document.createElement('canvas'); c.width = c.height = 512;
+    c.getContext('2d').drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, 512, 512);
+    const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.88));
+    const r = await fetch('/api/profiles/photo?id=' + encodeURIComponent(photoFor), { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'image/jpeg' }, body: blob });
+    toast(r.ok ? 'Photo saved' : "That photo didn't work"); poll();
+  } catch (x) { toast("That photo didn't work"); }
 };
 
 // ---------------------------------------------------------------- remote
@@ -471,29 +547,6 @@ async function sendText() {
 }
 $('#type-go').onclick = sendText;
 $('#type-text').addEventListener('keydown', e => { if (e.key === 'Enter') sendText(); });
-
-// live screen
-let screenOn = false;
-$('#screen-toggle').onclick = () => {
-  screenOn = !screenOn; buzz();
-  $('#screen-pill').classList.toggle('on', screenOn); $('#screen').hidden = !screenOn;
-  if (screenOn) screenLoop();
-};
-async function screenLoop() {
-  while (screenOn) {
-    if (document.visibilityState === 'visible' && tab === 'remote') {
-      try {
-        const r = await api('/api/screen.jpg');
-        if (r.ok) {
-          const url = URL.createObjectURL(await r.blob());
-          const box = $('#screen'); const old = box.querySelector('img');
-          const img = new Image(); img.src = url; img.onload = () => { box.innerHTML = ''; box.appendChild(img); if (old) URL.revokeObjectURL(old.src); };
-        } else { $('#screen').innerHTML = '<span>The TV can’t share its screen right now</span>'; }
-      } catch (e) {}
-    }
-    await new Promise(r => setTimeout(r, 900));
-  }
-}
 
 // ---------------------------------------------------------------- apps
 let appsLoaded = false;

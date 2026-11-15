@@ -48,7 +48,10 @@ class Prefs(ctx: Context) {
     var fails by int("fails", 0)
     var lockoutUntil by long("lockoutUntil", 0L)
 
-    val hasSecret get() = hash != null
+    /** Profiles (people and their PINs) as JSON; see [Profiles]. */
+    var profiles by str("profiles")
+
+    val hasSecret get() = Profiles.list(this).isNotEmpty()
 
     fun bootCount(): Int =
         Settings.Global.getInt(app.contentResolver, Settings.Global.BOOT_COUNT, 0)

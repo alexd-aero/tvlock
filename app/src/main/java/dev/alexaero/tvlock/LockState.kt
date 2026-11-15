@@ -24,6 +24,9 @@ object LockState {
     /** null = no test yet, true = unlocked with the right PIN, false = cancelled. */
     val testResult = MutableStateFlow<Boolean?>(null)
 
+    /** Who just unlocked: the lock shows "Hello, Name" before it fades away. */
+    val greeting = MutableStateFlow<Profile?>(null)
+
     /** Apps unlocked since the last home screen / sleep. */
     val unlocked = mutableSetOf<String>()
     /** Last real app on screen (from the accessibility service). */
@@ -40,7 +43,9 @@ object LockState {
     fun inGrace() = SystemClock.elapsedRealtime() < graceUntil
 
     /** The right PIN was entered on the lock screen. */
-    fun unlock(ctx: Context) {
+    fun unlock(ctx: Context, who: Profile? = null) {
+        // Greeting first, so the overlay stays up for it.
+        if (who != null && current.value != null) greeting.value = who
         when (val l = current.value) {
             Lock.Boot -> {
                 Prefs(ctx).markBootUnlocked()
