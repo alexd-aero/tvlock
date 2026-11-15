@@ -12,6 +12,9 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.TURN_SCREEN_ON" />
+    <!-- Granted by automatic setup (pm grant): lets TV Lock read the HDMI-CEC state to lock when the TV switches inputs. -->
+    <uses-permission android:name="android.permission.DUMP"
+        tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
     <!-- To list every app on the TV for the app picker (sideloaded app, not Play). -->

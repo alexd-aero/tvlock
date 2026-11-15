@@ -34,11 +34,11 @@ adb shell settings put secure accessibility_enabled 1
 
 ### Switching HDMI inputs
 
-With HDMI-CEC, the box can go to sleep when the TV switches to another input; TV Lock then locks, so the PIN is
-up when you switch back. Most boxes ship with this off:
+TV Lock watches the box's HDMI-CEC state: when the TV switches to another input, it puts the PIN screen up (the box
+stays on), so it's waiting when you switch back. Automatic setup grants what it needs; by hand:
 
 ```sh
-adb shell cmd hdmi_control cec_setting set power_state_change_on_active_source_lost standby_now
+adb shell pm grant dev.alexaero.tvlock android.permission.DUMP
 ```
 
 ### Locked out?

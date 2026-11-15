@@ -250,7 +250,7 @@ private fun Permissions(setup: Boolean, next: () -> Unit) {
         Row(verticalAlignment = Alignment.Bottom) {
             Box(Modifier.weight(1f)) {
                 ScreenTitle(
-                    "Allow TV Lock", "Two switches in the TV's Settings let the lock cover the screen.",
+                    "Allow TV Lock", "Let TV Lock allow everything by itself, or flip the two switches yourself.",
                     if (setup) "Step 1 of 6" else null,
                 )
             }
@@ -260,10 +260,16 @@ private fun Permissions(setup: Boolean, next: () -> Unit) {
             )
         }
         Spacer(Modifier.height(24.dp))
+        if (!(a11y && overlay)) {
+            AutoSetupCard(first) { tick++ }
+            Spacer(Modifier.height(22.dp))
+            Text("OR BY HAND", style = MaterialTheme.typography.labelLarge, color = C.caramel)
+            Spacer(Modifier.height(10.dp))
+        }
         PermRow(
             Icons.Rounded.Accessibility, "Accessibility", "Required",
             "Settings → Accessibility → TV Lock → turn it on. This is what puts the PIN screen over the home screen and apps.",
-            a11y, if (noA11yPage) "This TV has no Accessibility page. Use the adb commands below." else null, first,
+            a11y, if (noA11yPage) "This TV has no Accessibility page. Use the adb commands below." else null, null,
         ) { noA11yPage = !Perms.openAccessibility(ctx) }
         Spacer(Modifier.height(14.dp))
         PermRow(
@@ -802,13 +808,6 @@ private fun Options(prefs: Prefs) {
             else "Once unlocked, apps stay open until the TV sleeps.",
             home, { home = it; prefs.relockOnHome = it }, Modifier.fillMaxWidth(),
         )
-        Spacer(Modifier.height(6.dp))
-        Text(
-            "Switching inputs works best with HDMI-CEC: the box sleeps when the TV switches away, so it's locked " +
-                "when you come back. If your box stays awake, run this once from a computer:",
-            style = MaterialTheme.typography.bodyMedium, color = C.dim,
-        )
-        Code("adb shell cmd hdmi_control cec_setting set power_state_change_on_active_source_lost standby_now")
         Spacer(Modifier.height(6.dp))
         Text(
             "TV Lock ${runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull() ?: ""}",
@@ -1407,6 +1406,128 @@ private fun ProfileEdit(prefs: Prefs, id: String?, step: String?, startName: Str
         }
         Box(Modifier.width(470.dp), contentAlignment = Alignment.Center) {
             EntryPad(SecretKind.PASSWORD, entry, ::submit, first)
+        }
+    }
+}
+
+// ---------------------------------------------------------------- automatic setup on the TV itself
+
+/**
+ * TV Lock sets itself up: it connects to this TV's own network debugging, the TV asks once
+ * ("Allow debugging?"), and TV Lock allows everything it needs.
+ */
+@Composable
+private fun AutoSetupCard(fr: FocusRequester, changed: () -> Unit) {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var setup by remember { mutableStateOf<dev.alexaero.tvlock.phone.AdbSetup?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    var done by remember { mutableStateOf(false) }
+    var err by remember { mutableStateOf<String?>(null) }
+    var needDebugging by remember { mutableStateOf(false) }
+    val steps = setup?.steps?.collectAsState()?.value
+
+    fun start() {
+        if (busy) return
+        busy = true; err = null
+        scope.launch {
+            val on = withContext(Dispatchers.IO) { dev.alexaero.tvlock.phone.AdbSetup.reachable("127.0.0.1") }
+            if (!on) { needDebugging = true; busy = false; return@launch }
+            needDebugging = false
+            val s = dev.alexaero.tvlock.phone.AdbSetup(ctx, "127.0.0.1")
+            setup = s
+            try {
+                s.runOnThisTv()
+                done = true
+            } catch (e: Exception) {
+                err = e.message
+            }
+            busy = false
+            changed()
+        }
+    }
+
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(C.cream.copy(alpha = 0.10f))
+            .border(1.dp, C.latte.copy(alpha = 0.4f), RoundedCornerShape(24.dp)).padding(22.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Badge(Icons.Rounded.AutoAwesome, 52.dp)
+            Spacer(Modifier.width(18.dp))
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Allow everything automatically", style = MaterialTheme.typography.titleLarge)
+                    Spacer(Modifier.width(10.dp))
+                    Chip("Recommended", C.caramel)
+                }
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    when {
+                        done -> "Done. TV Lock is allowed to do everything it needs."
+                        busy && steps?.firstOrNull()?.st == dev.alexaero.tvlock.phone.AdbSetup.St.RUN ->
+                            "The TV is asking “Allow debugging?”: tick “Always allow from this computer”, then press Allow."
+                        else -> "The TV asks you once to allow it, then TV Lock switches everything on by itself."
+                    },
+                    style = MaterialTheme.typography.bodyMedium, color = if (done) C.good else C.dim,
+                )
+            }
+            Spacer(Modifier.width(18.dp))
+            if (!done) TvButton(
+                if (busy) "Working…" else if (err != null || needDebugging) "Try again" else "Set up automatically",
+                ::start, icon = Icons.Rounded.AutoAwesome, primary = true, focusRequester = fr,
+            )
+        }
+        if (steps != null) {
+            Spacer(Modifier.height(14.dp))
+            steps.forEach { st ->
+                Row(Modifier.padding(vertical = 4.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(26.dp), contentAlignment = Alignment.Center) {
+                        when (st.st) {
+                            dev.alexaero.tvlock.phone.AdbSetup.St.RUN ->
+                                androidx.compose.material3.CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = C.latte)
+                            dev.alexaero.tvlock.phone.AdbSetup.St.DONE -> Icon(Icons.Rounded.CheckCircle, null, tint = C.good)
+                            dev.alexaero.tvlock.phone.AdbSetup.St.SKIP -> Icon(Icons.Rounded.RemoveCircleOutline, null, tint = C.dim)
+                            dev.alexaero.tvlock.phone.AdbSetup.St.FAIL -> Icon(Icons.Rounded.Error, null, tint = C.error)
+                            dev.alexaero.tvlock.phone.AdbSetup.St.WAIT ->
+                                Box(Modifier.size(10.dp).clip(CircleShape).background(C.cream.copy(alpha = 0.25f)))
+                        }
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Text(st.title, style = MaterialTheme.typography.bodyLarge,
+                        color = if (st.st == dev.alexaero.tvlock.phone.AdbSetup.St.WAIT) C.dim else C.text)
+                    st.note?.let {
+                        Spacer(Modifier.width(10.dp))
+                        Text(it, style = MaterialTheme.typography.bodyMedium,
+                            color = if (st.st == dev.alexaero.tvlock.phone.AdbSetup.St.FAIL) C.error else C.dim)
+                    }
+                }
+            }
+        }
+        err?.takeIf { steps == null }?.let {
+            Spacer(Modifier.height(10.dp))
+            Text(it, style = MaterialTheme.typography.bodyMedium, color = C.error)
+        }
+        if (needDebugging) {
+            Spacer(Modifier.height(16.dp))
+            Text("First, switch on debugging on this TV", style = MaterialTheme.typography.titleMedium, color = C.warn)
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "1. Open About and press Build (or Android TV OS build) 7 times, until it says you're a developer.\n" +
+                    "2. Open Developer options and turn on USB debugging (and Network debugging if it's there).\n" +
+                    "3. Come back here and press Try again.",
+                style = MaterialTheme.typography.bodyMedium, color = C.dim,
+            )
+            Spacer(Modifier.height(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                TvButton("Open About", {
+                    LockState.grace()
+                    runCatching { ctx.startActivity(android.content.Intent(android.provider.Settings.ACTION_DEVICE_INFO_SETTINGS).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                }, icon = Icons.Rounded.Info)
+                TvButton("Developer options", {
+                    LockState.grace()
+                    runCatching { ctx.startActivity(android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                }, icon = Icons.Rounded.DeveloperMode)
+            }
         }
     }
 }

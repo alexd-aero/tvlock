@@ -27,7 +27,7 @@ class AdbSetup(private val ctx: Context, private val ip: String) {
             Step("Allow Accessibility", "Lets TV Lock show the lock screen over everything."),
             Step("Allow showing over other apps", "A backup way to show the lock right as the TV starts."),
             Step("Allow updates", "So TV Lock can update itself later."),
-            Step("Lock when you switch HDMI inputs", "The box sleeps when the TV switches away, so it's locked when you come back."),
+            Step("Lock when you switch HDMI inputs", "The PIN is up when you switch back to this box. The box stays on."),
             Step("Connect this phone", "So this phone can unlock and control the TV."),
             Step("Open TV Lock on the TV", "The TV shows the setup screen while you finish here."),
         )
@@ -59,28 +59,7 @@ class AdbSetup(private val ctx: Context, private val ip: String) {
                     set(i, St.DONE, if (theirs == null) "Installed version ${mine.versionName}" else "Updated to ${mine.versionName}")
                 } else set(i, St.SKIP, "Already up to date")
 
-                i = 2; set(i, St.RUN)
-                sh("appops set $PKG ACCESS_RESTRICTED_SETTINGS allow")
-                val cur = sh("settings get secure enabled_accessibility_services").takeUnless { it == "null" }.orEmpty()
-                val others = cur.split(':').filter { it.isNotBlank() && !it.startsWith("$PKG/") }
-                // Off and on again, so Android rereads the service after an update.
-                if (others.isEmpty()) sh("settings delete secure enabled_accessibility_services")
-                else sh("settings put secure enabled_accessibility_services '${others.joinToString(":")}'")
-                delay(800)
-                sh("settings put secure enabled_accessibility_services '${(others + SERVICE).joinToString(":")}'")
-                sh("settings put secure accessibility_enabled 1")
-                set(i, St.DONE)
-
-                i = 3; set(i, St.RUN)
-                set(i, if (sh("appops set $PKG SYSTEM_ALERT_WINDOW allow").isEmpty()) St.DONE else St.SKIP)
-
-                i = 4; set(i, St.RUN)
-                set(i, if (sh("appops set $PKG REQUEST_INSTALL_PACKAGES allow").isEmpty()) St.DONE else St.SKIP)
-
-                i = 5; set(i, St.RUN)
-                val cec = sh("cmd hdmi_control cec_setting set power_state_change_on_active_source_lost standby_now")
-                if (cec.contains("rror") || cec.contains("nknown") || cec.contains("not found")) set(i, St.SKIP, "Not available on this TV")
-                else set(i, St.DONE)
+                grants(2) { sh(it) }
 
                 i = 6; set(i, St.RUN)
                 val token = existingToken ?: Remote.token(32)
@@ -109,12 +88,64 @@ class AdbSetup(private val ctx: Context, private val ip: String) {
         }
     }
 
+    /** Accessibility, overlay, updates and the HDMI input lock, from step [first] on. */
+    private suspend fun grants(first: Int, sh: (String) -> String) {
+        var i = first; set(i, St.RUN)
+        sh("appops set $PKG ACCESS_RESTRICTED_SETTINGS allow")
+        val cur = sh("settings get secure enabled_accessibility_services").takeUnless { it == "null" }.orEmpty()
+        val others = cur.split(':').filter { it.isNotBlank() && !it.startsWith("$PKG/") }
+        // Off and on again, so Android rereads the service after an update.
+        if (others.isEmpty()) sh("settings delete secure enabled_accessibility_services")
+        else sh("settings put secure enabled_accessibility_services '${others.joinToString(":")}'")
+        delay(800)
+        sh("settings put secure enabled_accessibility_services '${(others + SERVICE).joinToString(":")}'")
+        sh("settings put secure accessibility_enabled 1")
+        set(i, St.DONE)
+
+        i++; set(i, St.RUN)
+        set(i, if (sh("appops set $PKG SYSTEM_ALERT_WINDOW allow").isEmpty()) St.DONE else St.SKIP)
+
+        i++; set(i, St.RUN)
+        set(i, if (sh("appops set $PKG REQUEST_INSTALL_PACKAGES allow").isEmpty()) St.DONE else St.SKIP)
+
+        i++; set(i, St.RUN)
+        // Read the HDMI-CEC state (to lock when the TV switches inputs), and keep the box awake when it does,
+        // so it's on the moment you switch back.
+        sh("cmd hdmi_control cec_setting set power_state_change_on_active_source_lost none")
+        val grant = sh("pm grant $PKG android.permission.DUMP")
+        if (grant.isNotEmpty()) set(i, St.SKIP, "Not available on this TV") else set(i, St.DONE)
+    }
+
+    /**
+     * Setup on the TV itself: TV Lock connects to this TV's own network debugging, the TV asks once
+     * ("Allow debugging?"), then TV Lock allows everything it needs by itself.
+     */
+    suspend fun runOnThisTv() = withContext(Dispatchers.IO) {
+        if (Build.VERSION.SDK_INT < 26) throw ApiError("Automatic setup needs Android 8 or newer. Use the steps below instead.")
+        steps.value = listOf(
+            Step("Allow TV Lock to set itself up", "Press Allow, and tick “Always allow from this computer”."),
+        ) + steps.value.subList(2, 6)
+        var i = 0
+        try {
+            set(i, St.RUN)
+            connect().use { d ->
+                set(i, St.DONE)
+                i = 1
+                grants(1) { d.shell(it).allOutput.trim() }
+            }
+        } catch (e: Exception) {
+            val msg = if (i == 0) "Couldn't connect to the TV's debugging. Press Allow when the TV asks, then try again." else friendly(e, i)
+            set(i, St.FAIL, msg)
+            throw ApiError(msg)
+        }
+    }
+
     private fun connect(): Dadb {
         val dir = File(ctx.filesDir, "adb").apply { mkdirs() }
         val priv = File(dir, "adbkey")
         val pub = File(dir, "adbkey.pub")
         if (!priv.exists() || !pub.exists()) AdbKeyPair.generate(priv, pub)
-        val d = Dadb.create(ip, 5555, AdbKeyPair.read(priv, pub), 8_000, 120_000)
+        val d = Dadb.create(ip, PORT, AdbKeyPair.read(priv, pub), 8_000, 120_000)
         d.shell("echo ok") // the TV shows "Allow debugging?" here the first time
         return d
     }
@@ -128,6 +159,13 @@ class AdbSetup(private val ctx: Context, private val ip: String) {
 
     companion object {
         const val PKG = "dev.alexaero.tvlock"
+        const val PORT = 5555
+
+        /** Is network debugging switched on (on this TV: ip = 127.0.0.1)? */
+        fun reachable(ip: String, timeout: Int = 700): Boolean = runCatching {
+            java.net.Socket().use { it.connect(java.net.InetSocketAddress(ip, PORT), timeout) }
+            true
+        }.getOrDefault(false)
         const val SERVICE = "$PKG/$PKG.LockService"
     }
 }

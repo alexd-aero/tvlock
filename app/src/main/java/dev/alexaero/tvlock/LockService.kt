@@ -18,6 +18,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
@@ -64,6 +65,26 @@ class LockService : AccessibilityService() {
         }
     }
 
+    /**
+     * Locks when the TV switches to another input (its own apps or another HDMI port), without putting the
+     * box to sleep, so the PIN is waiting when you switch back. Reads whether this box is the HDMI-CEC
+     * "active source" from `dumpsys hdmi_control` (needs the DUMP permission, granted by automatic setup).
+     */
+    private fun watchHdmiInput() = scope.launch(Dispatchers.IO) {
+        if (checkSelfPermission("android.permission.DUMP") != android.content.pm.PackageManager.PERMISSION_GRANTED) return@launch
+        val power = getSystemService(PowerManager::class.java)
+        var wasActive: Boolean? = null
+        while (true) {
+            delay(2500)
+            if (!power.isInteractive) { wasActive = null; continue }
+            val active = Hdmi.isActiveSource() ?: continue
+            if (wasActive == true && !active) {
+                withContext(Dispatchers.Main) { lockAway() }
+            }
+            wasActive = active
+        }
+    }
+
     /** Lock after a while without remote use, unless a video or song is playing in an app. */
     private fun watchIdle() = scope.launch {
         val power = getSystemService(PowerManager::class.java)
@@ -95,6 +116,7 @@ class LockService : AccessibilityService() {
         Remote.sync(this)
         LockState.lastActivity = SystemClock.elapsedRealtime()
         watchIdle()
+        watchHdmiInput()
         if (prefs.bootLockDue()) LockState.current.value = Lock.Boot
         scope.launch {
             combine(LockState.current, LockState.greeting) { l, g -> l to g }.collect { (lock, hello) ->

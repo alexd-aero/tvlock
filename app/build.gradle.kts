@@ -19,8 +19,8 @@ android {
         // Android TV 7.0+ (older boxes are still common).
         minSdk = 24
         targetSdk = 35
-        versionCode = 5
-        versionName = "1.3.0"
+        versionCode = 6
+        versionName = "1.3.1"
     }
 
     signingConfigs {
