@@ -143,6 +143,18 @@ object Remote {
         return tok to addDevice(p, tok, name)
     }
 
+    /** The one-time code (QR or 6 digits) as an approval for creating a profile; used up when it matches. */
+    @Synchronized
+    fun approveWithCode(code: String): Boolean {
+        val want = pairCode ?: return false
+        if (SystemClock.elapsedRealtime() > pairUntil) return false
+        val digits = code.filter { it.isDigit() }
+        val ok = MessageDigest.isEqual(want.toByteArray(), code.toByteArray()) ||
+            (code.length <= 12 && digits.length == 6 && MessageDigest.isEqual(shortCode.orEmpty().toByteArray(), digits.toByteArray()))
+        if (ok) { pairCode = null; shortCode = null }
+        return ok
+    }
+
     /** Join an already set-up TV with any profile's PIN; the PIN also says who this phone belongs to. */
     @Synchronized
     fun pairWithPin(p: Prefs, pin: String, name: String): Triple<String, Device, Profile>? {
@@ -186,6 +198,11 @@ object Remote {
 
 private class Server(private val ctx: Context) : NanoHTTPD(Remote.PORT) {
     private val prefs = Prefs(ctx)
+
+    // Never compress the live stream: gzip holds events back until a big block builds up, so browsers
+    // (which ask for gzip; curl doesn't) only saw changes via the slow backup check.
+    override fun useGzipWhenAccepted(r: Response): Boolean =
+        r.mimeType?.startsWith("text/event-stream") != true && super.useGzipWhenAccepted(r)
 
     override fun serve(s: IHTTPSession): Response {
         if (!Remote.isHome(s.remoteIpAddress)) {
@@ -237,6 +254,32 @@ private class Server(private val ctx: Context) : NanoHTTPD(Remote.PORT) {
                 }
                 Secret.recordSuccess(prefs)
                 return json(JSONObject().put("token", res.first).put("device", res.second.json(true)).put("profile", res.third.json()))
+            }
+            "/api/join-create" -> if (post) {
+                // A new person creates their own profile from their phone. Someone who already uses the TV
+                // approves with their PIN, or the 6-digit code from the TV's Phone page is entered.
+                val b = body(s)
+                val now = System.currentTimeMillis()
+                if (now < prefs.lockoutUntil) {
+                    val secs = (prefs.lockoutUntil - now) / 1000 + 1
+                    return json(JSONObject().put("error", "Too many wrong tries. Try again in $secs seconds."), Response.Status.TOO_MANY_REQUESTS)
+                }
+                val name = b.optString("name").trim()
+                if (name.isEmpty()) return json(JSONObject().put("error", "Add your name."), Response.Status.BAD_REQUEST)
+                val kind = runCatching { SecretKind.valueOf(b.optString("kind", "PIN")) }.getOrDefault(SecretKind.PIN)
+                val pin = b.optString("pin")
+                Profiles.validate(prefs, pin, kind)?.let { return json(JSONObject().put("error", it), Response.Status.BAD_REQUEST) }
+                val approval = b.optString("approval")
+                val approved = Remote.approveWithCode(approval) || Profiles.match(prefs, approval) != null
+                if (!approved) {
+                    Secret.recordFail(prefs)
+                    return json(JSONObject().put("error", "That isn't a PIN for this TV, or the code shown on the TV."), Response.Status.FORBIDDEN)
+                }
+                Secret.recordSuccess(prefs)
+                val pr = Profiles.add(prefs, name, b.optInt("color", Profiles.list(prefs).size % Profiles.palette.size), pin, kind)
+                val tok = Remote.token(32)
+                val d = Remote.addDevice(prefs, tok, b.optString("phone"), pr.id)
+                return json(JSONObject().put("token", tok).put("device", d.json(true)).put("profile", pr.json()))
             }
             "/api/hello" -> return json(
                 JSONObject().put("app", "tvlock").put("name", Remote.tvName()).put("version", Updater.current(ctx))

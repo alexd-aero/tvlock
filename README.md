@@ -7,7 +7,7 @@ starts, wakes up or switches back to the box's HDMI input. It can also lock just
 - Works with the remote's D-pad, the number buttons on the remote, or a keyboard
 - Locks again when the TV sleeps, when you switch inputs (HDMI-CEC) or after a while with no remote use
 - Wrong tries pause the lock: 5 free tries, then 30 s, 1 min, 2 min … up to 15 min
-- Profiles: everyone gets their own name, picture and PIN; the TV greets whoever unlocks it ("Hello, Marina")
+- Profiles: everyone gets their own name, picture and PIN; the TV greets whoever unlocks it ("Hello, Bob")
 - Phone remote on the home network: unlock, lock, D-pad, media keys, typing, apps and settings (no port forwarding)
 - Two APKs: TV-Lock (the TV app with the lock) and TV-Lock-Phone (the companion: finds the TV, sets it up
   automatically over ADB, remote, several TVs). The phone APK only asks for network access and its own updates.
