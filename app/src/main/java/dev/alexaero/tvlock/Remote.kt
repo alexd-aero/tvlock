@@ -217,10 +217,9 @@ private class Server(private val ctx: Context) : NanoHTTPD(Remote.PORT) {
                 return newFixedLengthResponse(Response.Status.OK, "text/html; charset=utf-8", html)
             }
             "/download/TV-Lock.apk", "/download/phone" -> {
-                // The phone app of the same version, from GitHub Releases (it isn't inside the TV app).
-                val v = Updater.current(ctx)
+                // The newest phone app on GitHub Releases (it isn't inside the TV app).
                 return newFixedLengthResponse(Response.Status.TEMPORARY_REDIRECT, MIME_PLAINTEXT, "")
-                    .apply { addHeader("Location", Updater.downloadUrl(Updater.phoneApk(v), v)) }
+                    .apply { addHeader("Location", Updater.latestPhoneApkUrl(ctx)) }
             }
             "/api/pair-pin" -> if (post) {
                 val b = body(s)

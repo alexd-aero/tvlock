@@ -28,6 +28,28 @@ object Updater {
     fun phoneApk(version: String) = "TV-Lock-Phone-$version.apk"
     fun downloadUrl(name: String, version: String) = "https://github.com/$REPO/releases/download/v$version/$name"
 
+    @Volatile private var latestPhone: Pair<Long, String>? = null
+
+    /** The newest phone app on GitHub (looked up at most every 10 minutes); this TV's version if GitHub can't be reached. */
+    fun latestPhoneApkUrl(ctx: Context): String {
+        latestPhone?.let { (at, url) -> if (System.currentTimeMillis() - at < 10 * 60_000) return url }
+        val url = runCatching {
+            val c = URL("https://api.github.com/repos/$REPO/releases/latest").openConnection() as HttpURLConnection
+            c.connectTimeout = 5000; c.readTimeout = 5000
+            c.setRequestProperty("Accept", "application/vnd.github+json")
+            c.setRequestProperty("User-Agent", "TV-Lock")
+            val j = c.inputStream.bufferedReader().use { JSONObject(it.readText()) }
+            c.disconnect()
+            val assets = j.getJSONArray("assets")
+            (0 until assets.length()).map { assets.getJSONObject(it) }
+                .first { it.getString("name").contains("Phone") && it.getString("name").endsWith(".apk") }
+                .getString("browser_download_url")
+        }.getOrNull()
+        if (url != null) latestPhone = System.currentTimeMillis() to url
+        val v = current(ctx)
+        return url ?: downloadUrl(phoneApk(v), v)
+    }
+
     private fun isMine(name: String) =
         if (BuildConfig.TV) name.endsWith(".apk") && !name.contains("Phone") else name.contains("Phone") && name.endsWith(".apk")
 
