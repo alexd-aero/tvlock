@@ -55,7 +55,15 @@ class AdbSetup(private val ctx: Context, private val ip: String) {
                 val myCode = if (Build.VERSION.SDK_INT >= 28) mine.longVersionCode else @Suppress("DEPRECATION") mine.versionCode.toLong()
                 val theirs = Regex("versionCode=(\\d+)").find(sh("dumpsys package $PKG | grep versionCode"))?.groupValues?.get(1)?.toLongOrNull()
                 if (theirs == null || theirs < myCode) {
-                    d.install(File(ctx.applicationInfo.sourceDir), "-r")
+                    // The phone app is a different APK: fetch the TV app of the same version from GitHub.
+                    val v = mine.versionName ?: ""
+                    val apk = try {
+                        if (dev.alexaero.tvlock.BuildConfig.TV) File(ctx.applicationInfo.sourceDir)
+                        else dev.alexaero.tvlock.Updater.fetch(ctx, dev.alexaero.tvlock.Updater.downloadUrl(dev.alexaero.tvlock.Updater.tvApk(v), v), "tv.apk")
+                    } catch (e: Exception) {
+                        throw ApiError("Couldn't download TV Lock for the TV. Is this phone online? (${e.message})")
+                    }
+                    d.install(apk, "-r")
                     set(i, St.DONE, if (theirs == null) "Installed version ${mine.versionName}" else "Updated to ${mine.versionName}")
                 } else set(i, St.SKIP, "Already up to date")
 

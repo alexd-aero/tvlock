@@ -258,7 +258,8 @@ fun LockScreen(
             submit()
         }
     }
-    InitialFocus(first)
+    // Again each time the window gets focus (for a lock that was drawn while the screen was off).
+    InitialFocus(first, androidx.compose.ui.platform.LocalWindowInfo.current.isWindowFocused)
     if (test) {
         // Never leave someone stuck in a test: it cancels itself after a minute without input.
         LaunchedEffect(entry.text, entry.shakes) {

@@ -30,7 +30,7 @@ object Live {
         scope.launch {
             combine(
                 LockState.current, LockState.greeting, LockState.gate, LockState.settingsOpen,
-                combine(Profiles.changed, Remote.devicesChanged, tick) { a, b, c -> Triple(a, b, c) },
+                combine(Profiles.changed, Remote.devicesChanged, tick, Updater.state) { a, b, c, d -> listOf(a, b, c, d) },
             ) { a, b, c, d, e -> listOf(a, b, c, d, e) }
                 .debounce(40)
                 .collect {

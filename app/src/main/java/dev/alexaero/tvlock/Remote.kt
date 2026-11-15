@@ -212,14 +212,15 @@ private class Server(private val ctx: Context) : NanoHTTPD(Remote.PORT) {
                 val apk = java.io.File(ctx.applicationInfo.sourceDir)
                 val html = String(ctx.assets.open("web/get.html").use { it.readBytes() })
                     .replace("{{TV}}", Remote.tvName())
-                    .replace("{{SIZE}}", "%.1f MB".format(apk.length() / 1_048_576.0))
+                    .replace("{{SIZE}}", "about 6 MB")
                     .replace("{{VERSION}}", Updater.current(ctx))
                 return newFixedLengthResponse(Response.Status.OK, "text/html; charset=utf-8", html)
             }
-            "/download/TV-Lock.apk" -> {
-                val apk = java.io.File(ctx.applicationInfo.sourceDir)
-                return newFixedLengthResponse(Response.Status.OK, "application/vnd.android.package-archive", apk.inputStream(), apk.length())
-                    .apply { addHeader("Content-Disposition", "attachment; filename=\"TV-Lock-${Updater.current(ctx)}.apk\"") }
+            "/download/TV-Lock.apk", "/download/phone" -> {
+                // The phone app of the same version, from GitHub Releases (it isn't inside the TV app).
+                val v = Updater.current(ctx)
+                return newFixedLengthResponse(Response.Status.TEMPORARY_REDIRECT, MIME_PLAINTEXT, "")
+                    .apply { addHeader("Location", Updater.downloadUrl(Updater.phoneApk(v), v)) }
             }
             "/api/pair-pin" -> if (post) {
                 val b = body(s)
@@ -300,6 +301,8 @@ private class Server(private val ctx: Context) : NanoHTTPD(Remote.PORT) {
                         return json(JSONObject().put("ok", true).put("profile", who.json()))
                     }
                     "/api/lock" -> Control.lockNow(ctx)
+                    "/api/update/check" -> Control.checkUpdate(ctx)
+                    "/api/update/install" -> Control.installUpdate(ctx)
                     "/api/key" -> Control.key(ctx, b.optString("key"))
                     "/api/text" -> Control.type(b.optString("text"), b.optBoolean("submit"))
                     "/api/launch" -> Control.launch(ctx, b.optString("pkg"))

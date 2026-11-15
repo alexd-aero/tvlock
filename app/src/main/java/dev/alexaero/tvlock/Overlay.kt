@@ -57,6 +57,9 @@ class Overlay(private val ctx: Context, private val type: Int) {
         }
         runCatching { wm.addView(v, lp) }.onFailure { o.stop(); return }
         v.requestFocus()
+        // Drawn while the screen was off (TV asleep or on another input): take the remote's focus
+        // again whenever the window gets it, or the keys go nowhere after waking up.
+        v.viewTreeObserver.addOnWindowFocusChangeListener { has -> if (has && !v.hasFocus()) v.requestFocus() }
         view = v
         owner = o
     }

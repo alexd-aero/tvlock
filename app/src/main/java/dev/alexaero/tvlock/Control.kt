@@ -18,6 +18,7 @@ import android.view.KeyEvent
 import android.view.View
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.core.graphics.drawable.toBitmap
+import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
@@ -56,6 +57,16 @@ object Control {
             .put("lockApp", (lock as? Lock.App)?.let { Apps.label(ctx, it.pkg) })
             .put("foreground", if (LockState.settingsOpen.value) "TV Lock settings" else fg?.let { Apps.label(ctx, it) })
             .put("address", Remote.baseUrl())
+            .put("update", when (val u = Updater.state.value) {
+                is Updater.State.Available -> JSONObject().put("state", "available").put("version", u.release.version)
+                is Updater.State.Downloading -> JSONObject().put("state", "downloading").put("version", u.release.version)
+                    .put("progress", u.progress.toDouble())
+                is Updater.State.Installing -> JSONObject().put("state", "installing").put("version", u.release.version)
+                Updater.State.UpToDate -> JSONObject().put("state", "uptodate")
+                Updater.State.Checking -> JSONObject().put("state", "checking")
+                is Updater.State.Failed -> JSONObject().put("state", "failed").put("error", u.message)
+                Updater.State.Idle -> JSONObject().put("state", "idle")
+            })
         val settings = JSONObject()
             .put("enabled", p.enabled).put("bootLock", p.bootLock).put("appLock", p.appLock)
             .put("lockOnWake", p.lockOnWake).put("relockOnHome", p.relockOnHome).put("idleMinutes", p.idleMinutes)
@@ -236,6 +247,21 @@ object Control {
             p.lockedApps = (0 until a.length()).map { a.getString(it) }.toSet()
         }
         Live.bump()
+        return true
+    }
+
+    // ------------------------------------------------------------- TV updates (from a phone)
+
+    private val bg = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)
+
+    fun checkUpdate(ctx: Context): Boolean { bg.launch { Updater.check(ctx) }; return true }
+
+    fun installUpdate(ctx: Context): Boolean {
+        bg.launch {
+            if (Updater.state.value !is Updater.State.Available) Updater.check(ctx)
+            val u = Updater.state.value
+            if (u is Updater.State.Available) Updater.downloadAndInstall(ctx, u.release)
+        }
         return true
     }
 

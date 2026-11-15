@@ -23,6 +23,14 @@ import java.net.URL
 object Updater {
     const val REPO = "alexd-aero/tvlock"
 
+    /** Release files: TV-Lock-1.4.0.apk is the TV app, TV-Lock-Phone-1.4.0.apk the phone app. */
+    fun tvApk(version: String) = "TV-Lock-$version.apk"
+    fun phoneApk(version: String) = "TV-Lock-Phone-$version.apk"
+    fun downloadUrl(name: String, version: String) = "https://github.com/$REPO/releases/download/v$version/$name"
+
+    private fun isMine(name: String) =
+        if (BuildConfig.TV) name.endsWith(".apk") && !name.contains("Phone") else name.contains("Phone") && name.endsWith(".apk")
+
     data class Release(val version: String, val notes: String, val apkUrl: String, val size: Long)
 
     sealed interface State {
@@ -82,7 +90,7 @@ object Updater {
             val assets = j.getJSONArray("assets")
             for (i in 0 until assets.length()) {
                 val a = assets.getJSONObject(i)
-                if (a.getString("name").endsWith(".apk")) {
+                if (isMine(a.getString("name"))) {
                     return@withContext Release(
                         j.getString("tag_name").removePrefix("v"),
                         j.optString("body", "").trim(),
@@ -125,8 +133,11 @@ object Updater {
         }
     }
 
-    private fun download(ctx: Context, rel: Release): File {
-        val out = File(ctx.cacheDir, "update.apk")
+    /** Downloads any APK (used by the phone to fetch the TV app for automatic setup). */
+    fun fetch(ctx: Context, url: String, name: String): File = download(ctx, Release("", "", url, 0), name)
+
+    private fun download(ctx: Context, rel: Release, name: String = "update.apk"): File {
+        val out = File(ctx.cacheDir, name)
         var url = URL(rel.apkUrl)
         // GitHub answers with a redirect to its download host.
         repeat(5) {
@@ -151,7 +162,7 @@ object Updater {
                                 if (n < 0) break
                                 o.write(buf, 0, n)
                                 done += n
-                                if (total > 0) state.value = State.Downloading(rel, done.toFloat() / total)
+                                if (total > 0 && rel.version.isNotEmpty()) state.value = State.Downloading(rel, done.toFloat() / total)
                             }
                         }
                     }

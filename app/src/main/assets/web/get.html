@@ -65,7 +65,7 @@ summary{color:var(--latte);cursor:pointer;font-weight:600;margin:8px 0}
       <li><svg viewBox="0 0 24 24"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg>Sets up every permission on the TV for you</li>
       <li><svg viewBox="0 0 24 24"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg>Unlock, remote, apps and settings, always one tap away</li>
     </ul>
-    <a class="btn primary" id="dl" href="/download/TV-Lock.apk" download>
+    <a class="btn primary" id="dl" href="/download/phone">
       <svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>Download TV Lock</a>
     <p class="meta">Android app · {{SIZE}} · version {{VERSION}}</p>
 
@@ -73,12 +73,15 @@ summary{color:var(--latte);cursor:pointer;font-weight:600;margin:8px 0}
     <ol>
       <li><span>Open the download (tap the notification, or <b>Downloads</b>).</span></li>
       <li><span>If your phone asks, let your browser install apps: <b>Settings</b> → turn on <b>Allow from this source</b> → go back → <b>Install</b>.</span></li>
+      <li><span>Samsung phone? If it says the app is blocked by <b>Auto Blocker</b>: open <b>Settings → Security and privacy → Auto Blocker</b>,
+        turn it off, install TV Lock, then turn it back on.</span></li>
       <li><span>If <b>Google Play Protect</b> warns you (“Unsafe app blocked” or “Scan app?”), tap <b>More details</b> → <b>Install anyway</b> (or <b>Install without scanning</b>).</span></li>
     </ol>
     <details>
       <summary>Why does Play Protect warn about it?</summary>
       TV Lock isn't on the Play Store, so Play Protect hasn't seen it before and warns about any app installed from a file.
-      It's the same app that runs on your TV. It only talks to your TV, on your home network.
+      The phone app only asks to use the network and to update itself; it doesn't get access to anything else on your phone.
+      It only talks to your TV, on your home network.
     </details>
     <a class="btn" id="open-app" href="tvlock://setup">
       <svg viewBox="0 0 24 24"><path d="M19 19H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>Installed? Open TV Lock</a>

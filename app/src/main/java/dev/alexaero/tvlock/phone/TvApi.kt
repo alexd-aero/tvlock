@@ -67,18 +67,53 @@ class TvApi(val host: String, var token: String? = null) {
     }
 }
 
-/** The TV this phone controls. */
+/** A TV this phone has joined. */
+data class SavedTv(val host: String, val token: String, val name: String)
+
+/** The TVs this phone controls, and which one is open. */
 class PhoneStore(ctx: Context) {
     private val sp = ctx.getSharedPreferences("phone", Context.MODE_PRIVATE)
-    val host get() = sp.getString("host", null)
-    val token get() = sp.getString("token", null)
-    val name get() = sp.getString("name", null) ?: "your TV"
-    val hasTv get() = host != null && token != null
 
+    init {
+        // 1.3 kept a single TV in host/token/name.
+        val h = sp.getString("host", null)
+        val t = sp.getString("token", null)
+        if (h != null && t != null && sp.getString("tvs", null) == null) {
+            write(listOf(SavedTv(h, t, sp.getString("name", null) ?: "TV")), h)
+        }
+    }
+
+    val tvs: List<SavedTv>
+        get() = runCatching {
+            val a = org.json.JSONArray(sp.getString("tvs", "[]"))
+            (0 until a.length()).map { a.getJSONObject(it).let { o -> SavedTv(o.getString("host"), o.getString("token"), o.getString("name")) } }
+        }.getOrDefault(emptyList())
+
+    private val current get() = tvs.firstOrNull { it.host == sp.getString("current", null) } ?: tvs.firstOrNull()
+    val host get() = current?.host
+    val token get() = current?.token
+    val name get() = current?.name ?: "your TV"
+    val hasTv get() = current != null
+
+    private fun write(list: List<SavedTv>, current: String?) {
+        val a = org.json.JSONArray()
+        list.forEach { a.put(JSONObject().put("host", it.host).put("token", it.token).put("name", it.name)) }
+        sp.edit().putString("tvs", a.toString()).putString("current", current).remove("host").remove("token").remove("name").apply()
+    }
+
+    /** Adds or updates a TV and makes it the open one. */
     fun save(host: String, token: String, name: String) =
-        sp.edit().putString("host", host).putString("token", token).putString("name", name).apply()
+        write(tvs.filter { it.host != host } + SavedTv(host, token, name), host)
 
-    fun clear() = sp.edit().clear().apply()
+    fun select(host: String) = write(tvs, host)
+
+    fun remove(host: String) {
+        val rest = tvs.filter { it.host != host }
+        write(rest, rest.firstOrNull()?.host)
+    }
+
+    /** Forget the open TV. */
+    fun clear() { host?.let { remove(it) } }
 
     companion object {
         /** What the TV will call this phone. */

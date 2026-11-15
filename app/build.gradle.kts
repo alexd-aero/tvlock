@@ -19,8 +19,22 @@ android {
         // Android TV 7.0+ (older boxes are still common).
         minSdk = 24
         targetSdk = 35
-        versionCode = 7
-        versionName = "1.3.2"
+        versionCode = 8
+        versionName = "1.4.0"
+    }
+
+    // Two APKs from one codebase, same app ID and key: the TV one has the lock; the phone one is only the
+    // remote/setup companion with no sensitive permissions (so phones and Play Protect don't flag it).
+    flavorDimensions += "device"
+    productFlavors {
+        create("tv") {
+            dimension = "device"
+            buildConfigField("boolean", "TV", "true")
+        }
+        create("phone") {
+            dimension = "device"
+            buildConfigField("boolean", "TV", "false")
+        }
     }
 
     signingConfigs {
@@ -53,7 +67,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
-    buildFeatures { compose = true }
+    buildFeatures { compose = true; buildConfig = true }
     lint { checkReleaseBuilds = false }
 }
 

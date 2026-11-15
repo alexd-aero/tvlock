@@ -14,6 +14,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (!BuildConfig.TV) {
+            // The phone APK: always the companion (remote + TV setup).
+            dev.alexaero.tvlock.phone.PhoneNet.preferWifi(this)
+            setContent { TvLockTheme { dev.alexaero.tvlock.phone.PhoneApp(intent.data) } }
+            return
+        }
         // "phoneUi" (from adb) shows the phone companion on a TV, for testing it without a phone.
         if (intent.getBooleanExtra("phoneUi", false)) {
             setContent { TvLockTheme { dev.alexaero.tvlock.phone.PhoneApp(intent.data) } }
@@ -33,12 +39,13 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        if (!Platform.isTv(this)) dev.alexaero.tvlock.phone.PhoneLinks.incoming.value = intent.data
+        if (!BuildConfig.TV || !Platform.isTv(this)) dev.alexaero.tvlock.phone.PhoneLinks.incoming.value = intent.data
         else if (intent.getBooleanExtra("phoneSetup", false)) recreate()
     }
 
     override fun onResume() {
         super.onResume()
+        if (!BuildConfig.TV) dev.alexaero.tvlock.phone.PhoneNet.preferWifi(this)
         if (tvUi) LockState.settingsOpen.value = true
     }
 

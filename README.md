@@ -9,7 +9,8 @@ starts, wakes up or switches back to the box's HDMI input. It can also lock just
 - Wrong tries pause the lock: 5 free tries, then 30 s, 1 min, 2 min … up to 15 min
 - Profiles: everyone gets their own name, picture and PIN; the TV greets whoever unlocks it ("Hello, Marina")
 - Phone remote on the home network: unlock, lock, D-pad, media keys, typing, apps and settings (no port forwarding)
-- One APK for TV and phone: on a phone it finds the TV and sets it up automatically over ADB
+- Two APKs: TV-Lock (the TV app with the lock) and TV-Lock-Phone (the companion: finds the TV, sets it up
+  automatically over ADB, remote, several TVs). The phone APK only asks for network access and its own updates.
 - Updates itself from this repo's GitHub Releases, keeping the PIN and settings
 
 ## Install
@@ -58,9 +59,9 @@ adb shell pm grant dev.alexaero.tvlock android.permission.DUMP
 ## Build
 
 ```sh
-./build.sh                   # fast dev APK for testing (no R8, same key): app/build/outputs/apk/dev/app-dev.apk
-./build.sh assembleRelease   # the small shrunk APK: app/build/outputs/apk/release/app-release.apk
-./release.sh "notes"         # release build + GitHub release for the version in app/build.gradle.kts
+./build.sh                   # fast dev APKs for testing (no R8, same key): app/build/outputs/apk/{tv,phone}/dev/
+./build.sh assembleRelease   # the small shrunk APKs: app/build/outputs/apk/{tv,phone}/release/
+./release.sh "notes"         # release build + GitHub release (TV APK first, then the phone APK)
 ```
 
 The Gradle daemon stays warm for 3 hours, so after the first build a small change rebuilds in seconds.

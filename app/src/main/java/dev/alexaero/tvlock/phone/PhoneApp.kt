@@ -81,6 +81,10 @@ private sealed interface P {
     data object NewMe : P
     /** "How do you want to appear?" for an existing profile. */
     data class Me(val profileId: String) : P
+    /** The TVs this phone controls. */
+    data object Tvs : P
+    /** Updates for this phone app. */
+    data object AppUpdate : P
 }
 
 /** The phone side of TV Lock: finds the TV, sets it up, then becomes the remote. */
@@ -127,7 +131,13 @@ fun PhoneApp(startLink: Uri?) {
         P.Apps -> api?.let { AppsScreen(it, ::back) { go(P.Pin) } }
         P.Pin -> api?.let { PinScreen(it, ::back, setupTv = true) { reset(P.Done) } }
         P.Done -> DoneScreen(store.name) { reset(P.Remote) }
-        P.Remote -> RemoteScreen(store, forget = { store.clear(); reset(P.Welcome) }, find = { go(P.Scan) })
+        P.Remote -> RemoteScreen(
+            store,
+            forget = { store.clear(); reset(if (store.hasTv) P.Tvs else P.Welcome) },
+            find = { go(P.Scan) }, tvs = { go(P.Tvs) }, update = { go(P.AppUpdate) },
+        )
+        P.Tvs -> TvsScreen(store, ::back, open = { reset(P.Remote) }, add = { go(P.Scan) }, none = { reset(P.Welcome) })
+        P.AppUpdate -> AppUpdateScreen(::back)
     }
 }
 
@@ -772,7 +782,7 @@ private fun DoneScreen(tvName: String, open: () -> Unit) {
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-private fun RemoteScreen(store: PhoneStore, forget: () -> Unit, find: () -> Unit) {
+private fun RemoteScreen(store: PhoneStore, forget: () -> Unit, find: () -> Unit, tvs: () -> Unit, update: () -> Unit) {
     val ctx = LocalContext.current
     var failed by remember { mutableStateOf(false) }
     var reload by remember { mutableIntStateOf(0) }
@@ -792,7 +802,7 @@ private fun RemoteScreen(store: PhoneStore, forget: () -> Unit, find: () -> Unit
     }
     Backdrop {
         Box(Modifier.fillMaxSize().systemBarsPadding()) {
-            key(reload) {
+            key(reload, store.host) {
                 AndroidView(
                     factory = { c ->
                         WebView(c).apply {
@@ -814,7 +824,11 @@ private fun RemoteScreen(store: PhoneStore, forget: () -> Unit, find: () -> Unit
                                 override fun shouldOverrideUrlLoading(v: WebView, r: WebResourceRequest): Boolean {
                                     val u = r.url
                                     if (u.scheme == "tvlock") {
-                                        if (u.host == "app" && u.path == "/forget") forget()
+                                        if (u.host == "app") when (u.path) {
+                                            "/forget" -> forget()
+                                            "/tvs" -> tvs()
+                                            "/update" -> update()
+                                        }
                                         return true
                                     }
                                     return false
@@ -833,13 +847,28 @@ private fun RemoteScreen(store: PhoneStore, forget: () -> Unit, find: () -> Unit
             if (failed) {
                 Page(
                     title = "Can't reach ${store.name}",
-                    sub = "Is this phone at home, on your home network? Is the TV plugged in?",
+                    sub = "Is this phone at home, and is the TV plugged in?",
                     bottom = {
-                        PButton("Try again", { failed = false; reload++ }, icon = Icons.Rounded.Refresh, primary = true)
+                        PButton("Try again", { failed = false; dev.alexaero.tvlock.phone.PhoneNet.preferWifi(ctx); reload++ }, icon = Icons.Rounded.Refresh, primary = true)
                         Spacer(Modifier.height(10.dp))
                         PButton("Find the TV again", find, icon = Icons.Rounded.Search)
+                        if (store.tvs.size > 1) {
+                            Spacer(Modifier.height(10.dp))
+                            PButton("Other TVs", tvs, icon = Icons.Rounded.Tv)
+                        }
                     },
                 ) {
+                    PCard {
+                        Text("This phone: ${PhoneNet.describe(ctx)}", color = C.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                        Text("TV: ${store.host}", color = C.dim, fontSize = 14.sp)
+                    }
+                    Note(
+                        Icons.Rounded.Wifi,
+                        "Things that send the TV's address the wrong way: a VPN app (turn it off, or allow local network access), " +
+                            "Samsung's \"Switch to mobile data\" (Settings → Connections → Wi-Fi → Intelligent Wi-Fi), " +
+                            "or a guest Wi-Fi that's kept apart from the rest of the home.",
+                        C.warn,
+                    )
                     Note(Icons.Rounded.Home, "TV Lock only works at home: nothing is opened on your router, so it can't be reached from outside.", C.dim)
                 }
             }
@@ -972,5 +1001,90 @@ private fun MeScreen(api: TvApi, profileId: String, done: () -> Unit) {
         Spacer(Modifier.height(8.dp))
         Field(name, { name = it.take(24); err = null }, "Your name", KeyboardType.Text)
         err?.let { Text(it, color = C.error, fontSize = 14.sp, modifier = Modifier.padding(top = 10.dp)) }
+    }
+}
+
+@Composable
+private fun TvsScreen(store: PhoneStore, back: () -> Unit, open: () -> Unit, add: () -> Unit, none: () -> Unit) {
+    var list by remember { mutableStateOf(store.tvs) }
+    val current = store.host
+    Page(
+        step = "Your TVs", title = "Which TV?",
+        sub = "Every TV with TV Lock that this phone has joined.", onBack = back,
+        bottom = { PButton("Add a TV", add, icon = Icons.Rounded.Add, primary = true) },
+    ) {
+        list.forEach { tv ->
+            PCard(highlight = tv.host == current, onClick = { store.select(tv.host); open() }) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Badge(Icons.Rounded.Tv, 48.dp)
+                    Spacer(Modifier.width(14.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(tv.name, color = C.text, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(tv.host.substringBefore(':') + if (tv.host == current) " · open now" else "", color = C.dim, fontSize = 14.sp)
+                    }
+                    Box(
+                        Modifier.size(44.dp).clip(CircleShape).clickable {
+                            store.remove(tv.host)
+                            list = store.tvs
+                            if (list.isEmpty()) none()
+                        },
+                        contentAlignment = Alignment.Center,
+                    ) { Icon(Icons.Rounded.DeleteOutline, "Remove ${tv.name}", tint = C.dim) }
+                }
+            }
+        }
+        Note(Icons.Rounded.Info, "Removing a TV here only forgets it on this phone. To stop this phone controlling it, remove it in that TV's Settings → Phones too.", C.dim)
+    }
+}
+
+@Composable
+private fun AppUpdateScreen(back: () -> Unit) {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val st by dev.alexaero.tvlock.Updater.state.collectAsState()
+    var tick by remember { mutableIntStateOf(0) }
+    androidx.lifecycle.compose.LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_RESUME) { tick++ }
+    val canInstall = remember(tick) { dev.alexaero.tvlock.Updater.canInstall(ctx) }
+    LaunchedEffect(Unit) { dev.alexaero.tvlock.Updater.check(ctx) }
+    val version = dev.alexaero.tvlock.Updater.current(ctx)
+    Page(
+        step = "Updates", title = "TV Lock app",
+        sub = "Version $version on this phone. New versions come from GitHub.", onBack = back,
+        bottom = {
+            when (val u = st) {
+                is dev.alexaero.tvlock.Updater.State.Available ->
+                    if (canInstall) PButton("Update to ${u.release.version}", { scope.launch { dev.alexaero.tvlock.Updater.downloadAndInstall(ctx, u.release) } },
+                        icon = Icons.Rounded.Download, primary = true)
+                    else PButton("Allow updates first", { dev.alexaero.tvlock.Updater.openInstallPermission(ctx) }, icon = Icons.Rounded.Security, primary = true)
+                is dev.alexaero.tvlock.Updater.State.Downloading, is dev.alexaero.tvlock.Updater.State.Installing, dev.alexaero.tvlock.Updater.State.Checking -> {}
+                else -> PButton("Check again", { scope.launch { dev.alexaero.tvlock.Updater.check(ctx) } }, icon = Icons.Rounded.Refresh)
+            }
+        },
+    ) {
+        PCard(highlight = st is dev.alexaero.tvlock.Updater.State.Available) {
+            val (title, desc) = when (val u = st) {
+                dev.alexaero.tvlock.Updater.State.Idle, dev.alexaero.tvlock.Updater.State.Checking -> "Checking for updates…" to "This takes a moment."
+                dev.alexaero.tvlock.Updater.State.UpToDate -> "You're up to date" to "There's no newer version of TV Lock."
+                is dev.alexaero.tvlock.Updater.State.Available -> "Version ${u.release.version} is ready" to
+                    (if (canInstall) "Your TVs and settings stay the same after the update." else "Let TV Lock install its updates: turn it on in the page that opens, then come back.")
+                is dev.alexaero.tvlock.Updater.State.Downloading -> "Downloading ${u.release.version}…" to "${(u.progress * 100).toInt()}%"
+                is dev.alexaero.tvlock.Updater.State.Installing -> "Installing ${u.release.version}…" to "Press Update when your phone asks."
+                is dev.alexaero.tvlock.Updater.State.Failed -> "Something went wrong" to u.message
+            }
+            Text(title, color = C.text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text(desc, color = if (st is dev.alexaero.tvlock.Updater.State.Failed) C.error else C.dim, fontSize = 15.sp)
+            val u = st
+            if (u is dev.alexaero.tvlock.Updater.State.Downloading) {
+                Spacer(Modifier.height(12.dp))
+                Box(Modifier.fillMaxWidth().height(6.dp).clip(CircleShape).background(C.cream.copy(alpha = 0.12f))) {
+                    Box(Modifier.fillMaxWidth(u.progress.coerceIn(0.02f, 1f)).fillMaxHeight().clip(CircleShape).background(C.accent))
+                }
+            }
+            val notes = (u as? dev.alexaero.tvlock.Updater.State.Available)?.release?.notes.orEmpty()
+            if (notes.isNotBlank()) {
+                Spacer(Modifier.height(12.dp))
+                Text(notes, color = C.dim, fontSize = 14.sp, lineHeight = 20.sp)
+            }
+        }
     }
 }

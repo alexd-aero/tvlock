@@ -37,7 +37,7 @@ h2{font-size:19px;margin:0 0 4px}
 .badge{width:56px;height:56px;border-radius:50%;background:var(--accent);color:var(--ink);display:grid;place-items:center;flex:none}
 .badge svg{width:28px;height:28px}
 .badge.sm{width:40px;height:40px}.badge.sm svg{width:20px;height:20px}
-.btn{appearance:none;border:1px solid var(--line);border-radius:999px;min-height:52px;padding:0 22px;background:var(--card);
+.btn{appearance:none;border:1px solid var(--line);border-radius:999px;min-height:52px;padding:0 22px;background:var(--card);color:var(--cream);text-decoration:none;
 font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:10px;transition:transform .12s,background .2s,box-shadow .2s;cursor:pointer}
 .btn:active{transform:scale(.95)}
 .btn.primary{background:var(--cream);color:var(--ink);border-color:transparent;box-shadow:0 12px 32px -12px rgba(200,155,109,.8)}
@@ -175,7 +175,7 @@ background:var(--cream);color:var(--ink);padding:12px 18px;border-radius:16px;fo
       <span class="chip warn" style="color:var(--caramel);background:rgba(200,155,109,.15)">Highly recommended</span>
       <h2 style="margin-top:12px">Get the TV Lock app</h2>
       <p class="sub small">It finds your TV on its own, sets up the TV for you, and keeps the remote one tap away.</p>
-      <a class="btn primary wide" style="margin-top:14px;text-decoration:none" href="/download/TV-Lock.apk" download><svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>Download TV Lock</a>
+      <a class="btn primary wide" style="margin-top:14px;text-decoration:none" href="/download/phone"><svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>Download TV Lock</a>
       <a class="btn wide" style="margin-top:10px;text-decoration:none" href="/get">How to install it</a>
     </div>
     <div class="card note web-only" id="bm-tip"><svg viewBox="0 0 24 24"><path d="M17 3H7a2 2 0 0 0-2 2v16l7-3 7 3V5a2 2 0 0 0-2-2z"/></svg>
@@ -263,12 +263,23 @@ background:var(--cream);color:var(--ink);padding:12px 18px;border-radius:16px;fo
     <div class="card web-only">
       <h2>TV Lock app</h2>
       <p class="sub small" style="margin-bottom:4px">Recommended: finds your TV and sets it up for you.</p>
-      <a class="btn primary wide" style="margin-top:10px;text-decoration:none" href="/download/TV-Lock.apk" download><svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>Download TV Lock</a>
+      <a class="btn primary wide" style="margin-top:10px;text-decoration:none" href="/download/phone"><svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>Download TV Lock</a>
+    </div>
+    <div class="card">
+      <h2>TV software</h2>
+      <p class="sub small" id="tvup-text">TV Lock on the TV</p>
+      <button class="btn wide" id="tvup-btn" style="margin-top:12px">Check for updates</button>
     </div>
     <div class="card app-only">
-      <h2>Other TVs</h2>
-      <p class="sub small">Set up or control a different TV from this phone.</p>
-      <a class="btn wide" style="margin-top:12px;text-decoration:none" href="tvlock://app/forget">Use another TV</a>
+      <h2>Your TVs</h2>
+      <p class="sub small">Switch between TVs, add another one, or forget this one on this phone.</p>
+      <a class="btn primary wide" style="margin-top:12px" href="tvlock://app/tvs"><svg viewBox="0 0 24 24"><path d="M21 3H3a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h5v2h8v-2h5a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm0 14H3V5h18v12z"/></svg>Switch or add a TV</a>
+      <a class="btn wide" style="margin-top:10px" href="tvlock://app/forget">Forget this TV on this phone</a>
+    </div>
+    <div class="card app-only">
+      <h2>TV Lock app</h2>
+      <p class="sub small">Updates for the app on this phone.</p>
+      <a class="btn wide" style="margin-top:12px" href="tvlock://app/update"><svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>Check for app updates</a>
     </div>
     <div class="card note"><svg viewBox="0 0 24 24"><path d="M12 2 1 21h22L12 2zm1 15h-2v-2h2v2zm0-4h-2V9h2v4z"/></svg>
       <div>Phone control works on your home network only, in the same house as the TV. Nothing is opened on your router.</div></div>
@@ -294,6 +305,8 @@ const inApp = /TVLockApp/.test(navigator.userAgent);
   if (t) { localStorage.setItem(KEY, t); history.replaceState(null, '', '/'); }
 })();
 document.documentElement.classList.add(inApp ? 'in-app' : 'in-web');
+// In the app, tapping the TV's name switches TVs.
+if (inApp) document.querySelector('.top').addEventListener('click', () => { location.href = 'tvlock://app/tvs'; });
 let token = localStorage.getItem(KEY), state = null, tab = 'lock';
 if (localStorage.getItem('tvlock.bm')) document.getElementById('bm-tip').hidden = true;
 document.getElementById('bm-ok').onclick = () => { localStorage.setItem('tvlock.bm', '1'); document.getElementById('bm-tip').hidden = true; };
@@ -433,6 +446,7 @@ function render() {
   $('#about').textContent = tv.name + ' · Android ' + tv.android + ' · TV Lock ' + tv.version;
   renderDevices();
   renderProfiles();
+  renderTvUpdate();
 }
 
 function renderDevices() {
@@ -480,6 +494,24 @@ $$('[data-set]').forEach(p => (p.closest('.row') || p).addEventListener('click',
   await api('/api/settings', { [k]: v }); poll();
 }));
 $('#idle').onchange = async e => { await api('/api/settings', { idleMinutes: +e.target.value }); toast('Saved'); poll(); };
+// TV updates (the TV downloads and installs them itself)
+function renderTvUpdate() {
+  const u = state.tv.update || { state: 'idle' }, t = $('#tvup-text'), b = $('#tvup-btn');
+  const v = state.tv.version;
+  const map = {
+    idle: ['TV Lock ' + v + ' on the TV.', 'Check for updates', 'check'],
+    checking: ['Checking…', 'Checking…', null],
+    uptodate: ['TV Lock ' + v + ' is up to date.', 'Check again', 'check'],
+    available: ['Version ' + u.version + ' is ready (the TV has ' + v + ').', 'Update the TV', 'install'],
+    downloading: ['The TV is downloading ' + u.version + '… ' + Math.round((u.progress || 0) * 100) + '%', 'Updating…', null],
+    installing: ['The TV is installing ' + u.version + '. TV Lock restarts by itself.', 'Updating…', null],
+    failed: [u.error || 'The update failed.', 'Try again', 'install'],
+  }[u.state] || ['TV Lock ' + v, 'Check for updates', 'check'];
+  t.textContent = map[0]; b.textContent = map[1]; b.disabled = !map[2];
+  b.classList.toggle('primary', u.state === 'available');
+  b.onclick = async () => { buzz(); await api(map[2] === 'install' ? '/api/update/install' : '/api/update/check', {}); };
+}
+
 // profiles
 const PAL = [['#F4EBD9','#DCC7A6'],['#E2B98C','#C89B6D'],['#D9E4C6','#AFC191'],['#F2CFC4','#DDA192'],['#D3E0EE','#A4BCD6'],['#E5D9F2','#C0A9DD']];
 const photoCache = {};
