@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- TV body -->
+    <path android:fillColor="#00000000" android:strokeColor="#FFF4EBD9" android:strokeWidth="4"
+        android:pathData="M33,38 h42 a5,5 0 0 1 5,5 v24 a5,5 0 0 1 -5,5 h-42 a5,5 0 0 1 -5,-5 v-24 a5,5 0 0 1 5,-5 z" />
+    <path android:fillColor="#FFF4EBD9" android:pathData="M44,76 h20 v4 h-20 z" />
+    <!-- padlock -->
+    <path android:fillColor="#00000000" android:strokeColor="#FFF4EBD9" android:strokeWidth="3.5"
+        android:pathData="M48,54 v-4 a6,6 0 0 1 12,0 v4" />
+    <path android:fillColor="#FFF4EBD9"
+        android:pathData="M45,54 h18 a2,2 0 0 1 2,2 v9 a2,2 0 0 1 -2,2 h-18 a2,2 0 0 1 -2,-2 v-9 a2,2 0 0 1 2,-2 z" />
+</vector>

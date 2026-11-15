@@ -1,0 +1,12 @@
+<resources>
+    <style name="Theme.TvLock" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/bg</item>
+        <item name="android:statusBarColor">@color/bg</item>
+        <item name="android:navigationBarColor">@color/bg</item>
+        <item name="android:windowFullscreen">true</item>
+    </style>
+    <style name="Theme.TvLock.Lock">
+        <item name="android:windowAnimationStyle">@null</item>
+    </style>
+    <color name="bg">#FF0D0C0A</color>
+</resources>

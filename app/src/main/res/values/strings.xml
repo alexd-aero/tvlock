@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">TV Lock</string>
+    <string name="service_label">TV Lock</string>
+    <string name="service_desc">Lets TV Lock show its PIN screen when the TV starts and when you open a locked app. TV Lock only sees which app is on screen. It does not read what is on the screen or what you type.</string>
+</resources>
