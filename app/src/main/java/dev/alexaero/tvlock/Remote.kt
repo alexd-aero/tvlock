@@ -68,6 +68,12 @@ object Remote {
     @Volatile private var pairCode: String? = null
     @Volatile private var pairUntil = 0L
     @Volatile private var pairFails = 0
+    /** Six digits to type into the phone app; valid together with [pairCode]. */
+    @Volatile var shortCode: String? = null
+        private set
+
+    /** Setup was finished from a phone (the TV's setup screen moves on). */
+    val setupFinished = MutableStateFlow(false)
 
     /** Name of the phone that was just paired (the TV's Phone screen shows it). */
     val justPaired = MutableStateFlow<String?>(null)
@@ -103,26 +109,38 @@ object Remote {
     fun newPairCode(): String {
         val c = token(12)
         pairCode = c
+        shortCode = (rng.nextInt(900_000) + 100_000).toString()
         pairUntil = SystemClock.elapsedRealtime() + 10 * 60_000L
         pairFails = 0
         return c
     }
 
-    fun endPairing() { pairCode = null }
+    fun endPairing() { pairCode = null; shortCode = null }
+
+    val pairingOpen get() = pairCode != null && SystemClock.elapsedRealtime() < pairUntil
 
     /** Swap the one-time code for a phone token. Returns (token, device) or null. */
     @Synchronized
     fun pair(p: Prefs, code: String, name: String): Pair<String, Device>? {
         val want = pairCode
         if (want == null || SystemClock.elapsedRealtime() > pairUntil || pairFails > 20) return null
-        if (!MessageDigest.isEqual(want.toByteArray(), code.toByteArray())) { pairFails++; return null }
+        val digits = code.filter { it.isDigit() }
+        val ok = MessageDigest.isEqual(want.toByteArray(), code.toByteArray()) ||
+            (code.length <= 12 && digits.length == 6 && MessageDigest.isEqual(shortCode.orEmpty().toByteArray(), digits.toByteArray()))
+        if (!ok) { pairFails++; return null }
         pairCode = null
+        shortCode = null
         val tok = token(32)
         val now = System.currentTimeMillis()
-        val d = Device(token(6), name.trim().take(40).ifEmpty { "Phone" }, Devices.hash(tok), now, now)
+        return tok to addDevice(p, tok, name)
+    }
+
+    fun addDevice(p: Prefs, token: String, name: String): Device {
+        val now = System.currentTimeMillis()
+        val d = Device(token(6), name.trim().take(40).ifEmpty { "Phone" }, Devices.hash(token), now, now)
         Devices.save(p, Devices.list(p) + d)
         justPaired.value = d.name
-        return tok to d
+        return d
     }
 
     /** This TV's home-network addresses; Ethernet first. */
@@ -174,6 +192,23 @@ private class Server(private val ctx: Context) : NanoHTTPD(Remote.PORT) {
             "/", "/index.html" -> return asset("web/index.html", "text/html; charset=utf-8")
             "/icon.png" -> return asset("web/icon.png", "image/png")
             "/manifest.webmanifest" -> return asset("web/manifest.webmanifest", "application/manifest+json")
+            "/get" -> {
+                val apk = java.io.File(ctx.applicationInfo.sourceDir)
+                val html = String(ctx.assets.open("web/get.html").use { it.readBytes() })
+                    .replace("{{TV}}", Remote.tvName())
+                    .replace("{{SIZE}}", "%.1f MB".format(apk.length() / 1_048_576.0))
+                    .replace("{{VERSION}}", Updater.current(ctx))
+                return newFixedLengthResponse(Response.Status.OK, "text/html; charset=utf-8", html)
+            }
+            "/download/TV-Lock.apk" -> {
+                val apk = java.io.File(ctx.applicationInfo.sourceDir)
+                return newFixedLengthResponse(Response.Status.OK, "application/vnd.android.package-archive", apk.inputStream(), apk.length())
+                    .apply { addHeader("Content-Disposition", "attachment; filename=\"TV-Lock-${Updater.current(ctx)}.apk\"") }
+            }
+            "/api/hello" -> return json(
+                JSONObject().put("app", "tvlock").put("name", Remote.tvName()).put("version", Updater.current(ctx))
+                    .put("setupDone", prefs.setupDone).put("pairing", Remote.pairingOpen)
+            )
             "/api/pair" -> if (post) {
                 val b = body(s)
                 val res = Remote.pair(prefs, b.optString("code"), b.optString("name"))
@@ -211,6 +246,14 @@ private class Server(private val ctx: Context) : NanoHTTPD(Remote.PORT) {
                     "/api/settings" -> Control.settings(ctx, b)
                     "/api/pin" -> return Control.pin(ctx, b)?.let { json(JSONObject().put("error", it), Response.Status.BAD_REQUEST) }
                         ?: json(JSONObject().put("ok", true))
+                    "/api/setup/finish" -> {
+                        if (!prefs.hasSecret) return json(JSONObject().put("error", "Set a PIN first."), Response.Status.BAD_REQUEST)
+                        prefs.enabled = true
+                        prefs.markBootUnlocked()
+                        prefs.setupDone = true
+                        Remote.setupFinished.value = true
+                        true
+                    }
                     "/api/devices/remove" -> { Devices.remove(prefs, b.optString("id")); true }
                     "/api/devices/rename" -> {
                         val n = b.optString("name").trim().take(40)

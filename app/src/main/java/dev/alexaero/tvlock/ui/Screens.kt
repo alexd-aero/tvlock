@@ -56,20 +56,26 @@ private val PAGE_V = 36.dp
  */
 private fun Modifier.page() = padding(horizontal = PAGE_H, vertical = PAGE_V)
 
-private enum class Screen { WELCOME, PERMISSIONS, MODE, APPS, KIND, CREATE, CONFIRM, TEST, HOME, OPTIONS, UPDATES, PHONE }
+private enum class Screen { WELCOME, PERMISSIONS, MODE, APPS, KIND, CREATE, CONFIRM, TEST, HOME, OPTIONS, UPDATES, PHONE, SETUP_CHOICE, PHONE_SETUP }
 
 @Composable
-fun TvLockApp(authed: MutableState<Boolean>, finish: () -> Unit) {
+fun TvLockApp(authed: MutableState<Boolean>, finish: () -> Unit, phoneSetup: Boolean = false) {
     val ctx = LocalContext.current
     val prefs = remember { Prefs(ctx) }
-    val stack = remember { mutableStateListOf(if (prefs.setupDone) Screen.HOME else Screen.WELCOME) }
+    val stack = remember {
+        when {
+            prefs.setupDone -> mutableStateListOf(Screen.HOME)
+            phoneSetup -> mutableStateListOf(Screen.WELCOME, Screen.SETUP_CHOICE, Screen.PHONE_SETUP)
+            else -> mutableStateListOf(Screen.WELCOME)
+        }
+    }
     var setup by rememberSaveable { mutableStateOf(!prefs.setupDone) }
     var newKind by remember { mutableStateOf(SecretKind.PIN) }
     var newLen by remember { mutableIntStateOf(4) }
     var firstTry by remember { mutableStateOf("") }
     var createMsg by remember { mutableStateOf<String?>(null) }
 
-    if (prefs.setupDone && !authed.value) {
+    if (!setup && prefs.setupDone && !authed.value) {
         LockScreen(
             title = "TV Lock settings",
             subtitle = "Enter your ${nounFor(prefs.secretKind)} to change the lock",
@@ -87,7 +93,9 @@ fun TvLockApp(authed: MutableState<Boolean>, finish: () -> Unit) {
     Backdrop {
         Box(Modifier.fillMaxSize()) {
             when (stack.last()) {
-                Screen.WELCOME -> Welcome { go(Screen.PERMISSIONS) }
+                Screen.WELCOME -> Welcome { go(Screen.SETUP_CHOICE) }
+                Screen.SETUP_CHOICE -> SetupChoice(phone = { go(Screen.PHONE_SETUP) }, tv = { go(Screen.PERMISSIONS) })
+                Screen.PHONE_SETUP -> PhoneSetup(prefs, manual = { go(Screen.PERMISSIONS) }, close = finish)
                 Screen.PERMISSIONS -> Permissions(setup) { if (setup) go(Screen.MODE) else back() }
                 Screen.MODE -> Mode(prefs, setup) {
                     if (!setup) prefs.markBootUnlocked()
@@ -902,7 +910,7 @@ private fun PhoneScreen(prefs: Prefs, setup: Boolean, done: () -> Unit) {
     DisposableEffect(Unit) { onDispose { Remote.endPairing() } }
     val fr = remember { FocusRequester() }
     InitialFocus(fr)
-    val url = if (access && base != null && code != null) "$base/#p=$code" else null
+    val url = if (access && base != null && code != null) "$base/get#p=$code" else null
 
     Row(Modifier.fillMaxSize().page(), verticalAlignment = Alignment.Top) {
         Column(Modifier.width(300.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -923,8 +931,11 @@ private fun PhoneScreen(prefs: Prefs, setup: Boolean, done: () -> Unit) {
                 }
             }
             Spacer(Modifier.height(14.dp))
-            Text(base ?: "", style = MaterialTheme.typography.titleMedium, color = C.latte)
-            Text("Code changes after each phone", style = MaterialTheme.typography.bodyMedium, color = C.dim)
+            Text(base?.let { "$it/get" } ?: "", style = MaterialTheme.typography.titleMedium, color = C.latte)
+            Remote.shortCode?.takeIf { url != null }?.let {
+                Spacer(Modifier.height(6.dp))
+                Text("Code for the app: ${it.chunked(3).joinToString(" ")}", style = MaterialTheme.typography.bodyMedium, color = C.dim)
+            }
         }
         Spacer(Modifier.width(44.dp))
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(vertical = 4.dp)) {
@@ -957,7 +968,7 @@ private fun PhoneScreen(prefs: Prefs, setup: Boolean, done: () -> Unit) {
             listOf(
                 "Connect your phone to your home Wi-Fi.",
                 "Point the phone's camera at the code.",
-                "Open the link and press Add phone.",
+                "Get the TV Lock app (recommended), or use the remote in the browser.",
             ).forEachIndexed { i, t ->
                 Row(Modifier.padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(32.dp).clip(CircleShape).background(C.accent), contentAlignment = Alignment.Center) {
@@ -1037,6 +1048,171 @@ private fun QrCode(text: String, modifier: Modifier) {
                 topLeft = androidx.compose.ui.geometry.Offset(x * cell, y * cell),
                 size = androidx.compose.ui.geometry.Size(cell + 0.6f, cell + 0.6f),
             )
+        }
+    }
+}
+
+// ---------------------------------------------------------------- setup choice + phone setup
+
+@Composable
+private fun SetupChoice(phone: () -> Unit, tv: () -> Unit) {
+    val fr = remember { FocusRequester() }
+    InitialFocus(fr)
+    Column(Modifier.fillMaxSize().page()) {
+        ScreenTitle("How do you want to set up?", "You can always change things later, on the TV or on your phone.")
+        Spacer(Modifier.height(30.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(22.dp)) {
+            ChoiceCard(
+                Icons.Rounded.PhoneAndroid, "With your phone", "Recommended",
+                "Scan a code and get the TV Lock app. It sets up the TV for you, then your phone becomes the remote.",
+                Modifier.weight(1f), fr, phone,
+            )
+            ChoiceCard(
+                Icons.Rounded.SettingsRemote, "On the TV", null,
+                "Use the remote to allow the permissions and set your PIN here.",
+                Modifier.weight(1f), null, tv,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ChoiceCard(
+    icon: ImageVector, title: String, tag: String?, desc: String, modifier: Modifier, fr: FocusRequester?, onClick: () -> Unit,
+) {
+    TvSurface(onClick, modifier.height(270.dp), RoundedCornerShape(26.dp), scale = 1.05f, focusRequester = fr) { focused ->
+        Column(Modifier.fillMaxSize().padding(26.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Badge(icon, 60.dp)
+                Spacer(Modifier.weight(1f))
+                if (tag != null) Chip(tag, if (focused) C.focusText else C.caramel)
+            }
+            Spacer(Modifier.weight(1f))
+            Text(title, style = MaterialTheme.typography.headlineMedium)
+            Spacer(Modifier.height(6.dp))
+            Text(desc, style = MaterialTheme.typography.bodyLarge, color = if (focused) C.focusText.copy(alpha = .7f) else C.dim)
+        }
+    }
+}
+
+@Composable
+private fun PhoneSetup(prefs: Prefs, manual: () -> Unit, close: () -> Unit) {
+    val ctx = LocalContext.current
+    LaunchedEffect(Unit) {
+        prefs.phoneAccess = true
+        Remote.start(ctx)
+        Remote.justPaired.value = null
+    }
+    val paired by Remote.justPaired.collectAsState()
+    val finished by Remote.setupFinished.collectAsState()
+    val running by LockState.serviceRunning.collectAsState()
+    var code by remember { mutableStateOf<String?>(null) }
+    var base by remember { mutableStateOf(Remote.baseUrl()) }
+    LaunchedEffect(paired) {
+        while (true) {
+            base = Remote.baseUrl()
+            code = Remote.newPairCode()
+            kotlinx.coroutines.delay(9 * 60_000L)
+        }
+    }
+    DisposableEffect(Unit) { onDispose { Remote.endPairing() } }
+    val fr = remember { FocusRequester() }
+    InitialFocus(fr, finished)
+
+    if (finished) {
+        Column(
+            Modifier.fillMaxSize().page(), horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Badge(Icons.Rounded.Check, 96.dp)
+            Spacer(Modifier.height(24.dp))
+            Text("All set", style = MaterialTheme.typography.displaySmall.copy(fontSize = 48.sp))
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "TV Lock is on. ${paired ?: "Your phone"} is your remote now.",
+                style = MaterialTheme.typography.bodyLarge, color = C.dim,
+            )
+            Spacer(Modifier.height(28.dp))
+            TvButton("Close", close, icon = Icons.Rounded.Check, primary = true, focusRequester = fr)
+        }
+        return
+    }
+
+    val url = if (base != null && code != null) "$base/get#p=$code" else null
+    Row(Modifier.fillMaxSize().page(), verticalAlignment = Alignment.Top) {
+        Column(Modifier.width(300.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Spacer(Modifier.height(10.dp))
+            Box(
+                Modifier.size(290.dp).clip(RoundedCornerShape(28.dp))
+                    .background(if (url != null) C.cream else C.card).padding(22.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (url != null) QrCode(url, Modifier.fillMaxSize())
+                else Text("The TV isn't on a network", color = C.dim)
+            }
+            Spacer(Modifier.height(14.dp))
+            Text(base?.let { "$it/get" } ?: "", style = MaterialTheme.typography.titleMedium, color = C.latte)
+        }
+        Spacer(Modifier.width(44.dp))
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(vertical = 4.dp)) {
+            Row(verticalAlignment = Alignment.Top) {
+                Box(Modifier.weight(1f)) { ScreenTitle("Scan with your phone", null, "Set up with your phone") }
+                Spacer(Modifier.width(16.dp))
+                TvButton("Set up on the TV", manual, icon = Icons.Rounded.SettingsRemote, focusRequester = fr)
+            }
+            Spacer(Modifier.height(18.dp))
+            listOf(
+                "Scan the code with your phone's camera (same home network as the TV).",
+                "Download the TV Lock app. The page says what to tap if Play Protect asks.",
+                "Open the app. It finds this TV and sets everything up for you.",
+            ).forEachIndexed { i, t ->
+                Row(Modifier.padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(32.dp).clip(CircleShape).background(C.accent), contentAlignment = Alignment.Center) {
+                        Text("${i + 1}", color = C.focusText, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(Modifier.width(14.dp))
+                    Text(t, style = MaterialTheme.typography.bodyLarge)
+                }
+            }
+            Spacer(Modifier.height(18.dp))
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(C.card).padding(18.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("Code for the app", style = MaterialTheme.typography.titleMedium)
+                    Text("If the app asks for it", style = MaterialTheme.typography.bodyMedium, color = C.dim)
+                }
+                Text(
+                    Remote.shortCode?.chunked(3)?.joinToString(" ") ?: "–",
+                    fontSize = 34.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp, color = C.latte,
+                )
+            }
+            Spacer(Modifier.height(14.dp))
+            val p = paired
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
+                    .background(if (p != null) C.good.copy(alpha = 0.12f) else C.card).padding(18.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(if (p != null) Icons.Rounded.CheckCircle else Icons.Rounded.Sync, null, tint = if (p != null) C.good else C.dim)
+                Spacer(Modifier.width(14.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        if (p != null) "$p is connected" else "Waiting for your phone…",
+                        style = MaterialTheme.typography.titleMedium, color = if (p != null) C.good else C.text,
+                    )
+                    Text(
+                        when {
+                            p == null -> "Keep this screen open."
+                            running -> "Finish on your phone: choose what to lock and set your PIN."
+                            else -> "The app can allow Accessibility for you, or allow it here."
+                        },
+                        style = MaterialTheme.typography.bodyMedium, color = C.dim,
+                    )
+                }
+                if (p != null && !running) TvButton("Allow here", { Perms.openAccessibility(ctx) }, primary = true)
+            }
         }
     }
 }

@@ -13,7 +13,21 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { TvLockTheme { TvLockApp(authed, ::finish) } }
+        if (!Platform.isTv(this)) {
+            // The same APK is the phone companion: no lock service or boot lock on a phone.
+            Platform.disableTvParts(this)
+            setContent { TvLockTheme { dev.alexaero.tvlock.phone.PhoneApp(intent.data) } }
+            return
+        }
+        val phoneSetup = intent.getBooleanExtra("phoneSetup", false)
+        setContent { TvLockTheme { TvLockApp(authed, ::finish, phoneSetup) } }
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (!Platform.isTv(this)) dev.alexaero.tvlock.phone.PhoneLinks.incoming.value = intent.data
+        else if (intent.getBooleanExtra("phoneSetup", false)) recreate()
     }
 
     override fun onStop() {

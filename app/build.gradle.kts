@@ -19,8 +19,8 @@ android {
         // Android TV 7.0+ (older boxes are still common).
         minSdk = 24
         targetSdk = 35
-        versionCode = 4
-        versionName = "1.2.0"
+        versionCode = 5
+        versionName = "1.3.0"
     }
 
     signingConfigs {
@@ -55,6 +55,8 @@ dependencies {
     // Phone remote: tiny HTTP server on the TV + QR code for pairing.
     implementation("org.nanohttpd:nanohttpd:2.3.1")
     implementation("com.google.zxing:core:3.5.3")
+    // Phone companion: ADB client for automatic TV setup.
+    implementation("dev.mobile:dadb:1.2.10")
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
 
