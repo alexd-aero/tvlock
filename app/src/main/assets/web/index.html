@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#0D0C0A">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon.png">
+<link rel="apple-touch-icon" href="/icon.png">
+<title>TV Lock</title>
+<style>
+:root{--bg0:#0D0C0A;--bg1:#1A1714;--cream:#F4EBD9;--latte:#DCC7A6;--caramel:#C89B6D;--dim:#A89F8F;--ink:#1B1712;
+--card:rgba(244,235,217,.07);--line:rgba(244,235,217,.12);--good:#A6D9A9;--warn:#F2C879;--err:#FF8F7E;
+--accent:linear-gradient(135deg,var(--cream),var(--latte))}
+*{box-sizing:border-box}
+html{background:#1A1714}
+html,body{margin:0;min-height:100%;-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
+body{min-height:100vh;color:var(--cream);font:16px/1.4 system-ui,-apple-system,Roboto,"Segoe UI",sans-serif;
+background:radial-gradient(120% 55% at 0% 0%,rgba(200,155,109,.18),transparent 60%),
+radial-gradient(90% 45% at 100% 100%,rgba(220,199,166,.08),transparent 60%),linear-gradient(var(--bg0),var(--bg1));
+background-attachment:fixed;-webkit-user-select:none;user-select:none}
+[hidden]{display:none!important}
+button{font:inherit;color:inherit}
+svg{width:24px;height:24px;fill:currentColor;flex:none}
+.top{display:flex;align-items:center;gap:12px;padding:calc(16px + env(safe-area-inset-top)) 20px 4px}
+.top b{font-size:18px}.top small{display:block;color:var(--dim);font-size:13px}
+.dot{margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--good);box-shadow:0 0 12px var(--good)}
+.dot.off{background:var(--err);box-shadow:0 0 12px var(--err)}
+main{padding:4px 18px calc(110px + env(safe-area-inset-bottom));max-width:560px;margin:0 auto}
+.step{color:var(--caramel);font:700 12px/1 system-ui;letter-spacing:1.4px;text-transform:uppercase;margin-top:18px}
+h1{font-size:32px;letter-spacing:-.6px;margin:8px 0 4px;line-height:1.1}
+h2{font-size:19px;margin:0 0 4px}
+.sub{color:var(--dim);margin:0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:26px;padding:20px;margin:14px 0}
+.badge{width:56px;height:56px;border-radius:50%;background:var(--accent);color:var(--ink);display:grid;place-items:center;flex:none}
+.badge svg{width:28px;height:28px}
+.badge.sm{width:40px;height:40px}.badge.sm svg{width:20px;height:20px}
+.btn{appearance:none;border:1px solid var(--line);border-radius:999px;min-height:52px;padding:0 22px;background:var(--card);
+font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:10px;transition:transform .12s,background .2s,box-shadow .2s;cursor:pointer}
+.btn:active{transform:scale(.95)}
+.btn.primary{background:var(--cream);color:var(--ink);border-color:transparent;box-shadow:0 12px 32px -12px rgba(200,155,109,.8)}
+.btn.wide{width:100%}
+.btn.danger{color:var(--err)}
+.btn[disabled]{opacity:.5}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.hero{display:flex;flex-direction:column;align-items:flex-start;gap:14px;position:relative;overflow:hidden}
+.hero.locked{box-shadow:0 20px 60px -30px rgba(200,155,109,.9)}
+.hero .state{font-size:28px;font-weight:700;letter-spacing:-.4px}
+.chip{display:inline-flex;align-items:center;gap:6px;font:700 11px/1 system-ui;letter-spacing:1px;text-transform:uppercase;padding:6px 10px;border-radius:9px}
+.chip.good{color:var(--good);background:rgba(166,217,169,.13)}.chip.warn{color:var(--warn);background:rgba(242,200,121,.13)}
+.chip.err{color:var(--err);background:rgba(255,143,126,.13)}
+.note{display:flex;gap:12px;align-items:flex-start;color:var(--dim);font-size:14px}
+.note svg{color:var(--warn);margin-top:1px}
+/* remote */
+.screen{width:100%;aspect-ratio:16/9;border-radius:20px;background:#000 center/cover;border:1px solid var(--line);display:grid;place-items:center;color:var(--dim);font-size:14px;overflow:hidden}
+.screen img{width:100%;height:100%;object-fit:contain;display:block}
+.dpad{position:relative;width:min(80vw,300px);aspect-ratio:1;margin:22px auto 10px;border-radius:50%;background:var(--card);border:1px solid var(--line);
+box-shadow:inset 0 0 40px rgba(0,0,0,.35)}
+.dpad button{position:absolute;border:0;background:transparent;display:grid;place-items:center;color:var(--latte);border-radius:50%;width:30%;height:30%}
+.dpad button:active{background:rgba(244,235,217,.12);color:var(--cream)}
+.dpad .u{top:2%;left:35%}.dpad .d{bottom:2%;left:35%}.dpad .l{left:2%;top:35%}.dpad .r{right:2%;top:35%}
+.dpad .ok{left:30%;top:30%;width:40%;height:40%;background:var(--cream);color:var(--ink);font-weight:700;font-size:18px;
+box-shadow:0 10px 40px -10px rgba(200,155,109,.9)}
+.dpad .ok:active{transform:scale(.94);background:#fff8ea}
+.dpad svg{width:34px;height:34px}
+.keys{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:14px 0}
+.key{height:64px;border-radius:22px;background:var(--card);border:1px solid var(--line);display:grid;place-items:center;transition:transform .1s}
+.key:active{transform:scale(.93);background:var(--cream);color:var(--ink)}
+.key small{display:block;font-size:11px;color:var(--dim);margin-top:-2px}
+.vol{display:flex;align-items:center;gap:12px}
+.vol .key{flex:1}
+.type{display:flex;gap:10px;margin-top:12px}
+input,select{font:inherit;color:var(--cream);background:rgba(0,0,0,.25);border:1px solid var(--line);border-radius:16px;height:52px;padding:0 16px;width:100%;outline:none;-webkit-user-select:text;user-select:text}
+input:focus,select:focus{border-color:var(--caramel)}
+select{appearance:none}
+/* apps */
+.apps{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-top:14px}
+.app{position:relative;border-radius:20px;background:var(--card);border:1px solid var(--line);overflow:hidden;text-align:left;padding:0;cursor:pointer}
+.app:active{transform:scale(.97)}
+.app .art{aspect-ratio:16/9;background:rgba(0,0,0,.25);display:grid;place-items:center}
+.app .art img{width:100%;height:100%;object-fit:cover}
+.app .art img.sq{width:44%;height:auto;object-fit:contain}
+.app .name{padding:9px 12px 11px;font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:48px}
+.app .lk{position:absolute;right:8px;bottom:6px;width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:rgba(13,12,10,.6);display:grid;place-items:center;color:var(--dim)}
+.app .lk svg{width:18px;height:18px}
+.app.locked{border-color:rgba(220,199,166,.55)}
+.app.locked .lk{background:var(--cream);color:var(--ink);border-color:transparent}
+/* settings */
+.row{display:flex;align-items:center;gap:14px;padding:15px 0;border-top:1px solid var(--line);cursor:pointer}
+.row:first-child{border-top:0;padding-top:4px}
+.row .t{flex:1}.row .t b{display:block;font-size:16px}.row .t span{color:var(--dim);font-size:13px}
+.pill{width:52px;height:30px;border-radius:99px;background:rgba(168,159,143,.25);position:relative;flex:none;transition:background .2s}
+.pill::after{content:"";position:absolute;top:4px;left:4px;width:22px;height:22px;border-radius:50%;background:var(--cream);transition:transform .2s,background .2s}
+.pill.on{background:var(--accent)}.pill.on::after{transform:translateX(22px);background:var(--ink)}
+.dev{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--line)}
+.dev:first-of-type{border-top:0}
+.dev .t{flex:1}.dev .t span{color:var(--dim);font-size:13px;display:block}
+.small{font-size:13px;color:var(--dim)}
+.err{color:var(--err);font-size:14px;min-height:20px;margin:8px 0 0}
+/* tabs */
+.tabs{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:center;gap:6px;padding:10px 14px calc(12px + env(safe-area-inset-bottom));
+background:rgba(13,12,10,.72);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border-top:1px solid var(--line)}
+.tabs button{flex:1;max-width:120px;border:0;background:transparent;border-radius:18px;padding:8px 0 6px;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:12px;font-weight:600;color:var(--dim)}
+.tabs button.on{background:var(--cream);color:var(--ink)}
+#toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom));transform:translate(-50%,20px);opacity:0;transition:all .25s;
+background:var(--cream);color:var(--ink);padding:12px 18px;border-radius:16px;font-weight:600;font-size:14px;pointer-events:none;max-width:88vw;text-align:center;z-index:9}
+#toast.on{opacity:1;transform:translate(-50%,0)}
+.center{text-align:center}
+.qrhint{display:flex;flex-direction:column;align-items:center;gap:16px;text-align:center;padding:28px 10px}
+</style>
+</head>
+<body>
+<header class="top">
+  <span class="badge sm"><svg viewBox="0 0 24 24"><path d="M18 8h-1V6a5 5 0 0 0-10 0v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2zm-6 9a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm3.1-9H8.9V6a3.1 3.1 0 0 1 6.2 0v2z"/></svg></span>
+  <div><b>TV Lock</b><small id="tvname">Your TV</small></div>
+  <span id="conn" class="dot" hidden></span>
+</header>
+
+<main>
+  <!-- Pairing (opened from the QR code) -->
+  <section id="v-pair" hidden>
+    <div class="step">Add this phone</div>
+    <h1>Control your TV from this phone</h1>
+    <p class="sub">Unlock the TV, use it as a remote and change TV Lock's settings.</p>
+    <div class="card">
+      <h2>Name this phone</h2>
+      <p class="sub small" style="margin-bottom:12px">So you can tell your phones apart on the TV.</p>
+      <input id="pair-name" maxlength="40" autocomplete="off">
+      <p class="err" id="pair-err"></p>
+      <button class="btn primary wide" id="pair-go">Add phone</button>
+    </div>
+    <div class="card note"><svg viewBox="0 0 24 24"><path d="M12 2 1 21h22L12 2zm1 15h-2v-2h2v2zm0-4h-2V9h2v4z"/></svg>
+      <div><b style="color:var(--cream)">Works at home only.</b> This phone talks to the TV over your home network, so it has to be
+      in the same house as the TV. It won't work from outside: that would need opening a port on your router, and TV Lock doesn't
+      do that to keep your home network safe.</div></div>
+  </section>
+
+  <!-- Not paired -->
+  <section id="v-unpaired" hidden>
+    <div class="qrhint">
+      <span class="badge" style="width:84px;height:84px"><svg viewBox="0 0 24 24" style="width:40px;height:40px"><path d="M3 11h8V3H3v8zm2-6h4v4H5V5zm8-2v8h8V3h-8zm6 6h-4V5h4v4zM3 21h8v-8H3v8zm2-6h4v4H5v-4zm13-2h-2v3h-3v2h3v3h2v-3h3v-2h-3z"/></svg></span>
+      <h1>Scan the code on your TV</h1>
+      <p class="sub">On the TV, open TV Lock → <b style="color:var(--cream)">Phone</b>, then scan the QR code with this phone's camera.</p>
+    </div>
+  </section>
+
+  <!-- Lock -->
+  <section id="t-lock" class="tab" hidden>
+    <div class="card hero" id="hero">
+      <span class="badge" id="hero-badge"></span>
+      <div>
+        <div class="state" id="hero-state">…</div>
+        <p class="sub" id="hero-sub"></p>
+      </div>
+      <button class="btn primary wide" id="hero-btn"></button>
+    </div>
+    <div class="grid2">
+      <button class="btn" data-key="wake"><svg viewBox="0 0 24 24"><path d="M13 3h-2v10h2V3zm4.83 2.17-1.42 1.42A6.92 6.92 0 0 1 19 12a7 7 0 1 1-11.42-5.42L6.17 5.17A8.93 8.93 0 0 0 3 12a9 9 0 0 0 18 0c0-2.74-1.23-5.18-3.17-6.83z"/></svg>Turn on</button>
+      <button class="btn" data-key="sleep"><svg viewBox="0 0 24 24"><path d="M9.37 5.51A7.35 7.35 0 0 0 9.1 7.5c0 4.08 3.32 7.4 7.4 7.4.68 0 1.35-.09 1.99-.27A7.01 7.01 0 0 1 12 19c-3.86 0-7-3.14-7-7 0-2.93 1.81-5.45 4.37-6.49zM12 3a9 9 0 1 0 9 9c0-.46-.04-.92-.1-1.36a5.39 5.39 0 0 1-4.4 2.26 5.4 5.4 0 0 1-3.14-9.8c-.44-.06-.9-.1-1.36-.1z"/></svg>Sleep</button>
+    </div>
+    <div class="card">
+      <div class="row" style="cursor:default;padding-top:0;border:0">
+        <div class="t"><b id="sum-mode">…</b><span id="sum-now"></span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Remote -->
+  <section id="t-remote" class="tab" hidden>
+    <div class="card" style="padding:14px">
+      <div class="row" id="screen-toggle" style="padding:2px 4px 12px;border:0">
+        <div class="t"><b>Show the TV screen</b><span>Refreshes about once a second</span></div><span class="pill" id="screen-pill"></span>
+      </div>
+      <div class="screen" id="screen" hidden><span>Connecting…</span></div>
+    </div>
+    <div class="dpad">
+      <button class="u" data-key="up" data-repeat><svg viewBox="0 0 24 24"><path d="M7.4 15.4 12 10.8l4.6 4.6L18 14l-6-6-6 6z"/></svg></button>
+      <button class="l" data-key="left" data-repeat><svg viewBox="0 0 24 24"><path d="M15.4 16.6 10.8 12l4.6-4.6L14 6l-6 6 6 6z"/></svg></button>
+      <button class="ok" data-key="center">OK</button>
+      <button class="r" data-key="right" data-repeat><svg viewBox="0 0 24 24"><path d="M8.6 16.6 13.2 12 8.6 7.4 10 6l6 6-6 6z"/></svg></button>
+      <button class="d" data-key="down" data-repeat><svg viewBox="0 0 24 24"><path d="M7.4 8.6 12 13.2l4.6-4.6L18 10l-6 6-6-6z"/></svg></button>
+    </div>
+    <div class="keys">
+      <button class="key" data-key="back"><div><svg viewBox="0 0 24 24"><path d="M20 11H7.8l5.6-5.6L12 4l-8 8 8 8 1.4-1.4L7.8 13H20z"/></svg><small>Back</small></div></button>
+      <button class="key" data-key="home"><div><svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg><small>Home</small></div></button>
+      <button class="key" data-key="recents"><div><svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg><small>Apps</small></div></button>
+      <button class="key" data-key="rewind"><svg viewBox="0 0 24 24"><path d="M11 18V6l-8.5 6 8.5 6zm.5-6 8.5 6V6l-8.5 6z"/></svg></button>
+      <button class="key" data-key="playpause"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
+      <button class="key" data-key="ffwd"><svg viewBox="0 0 24 24"><path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/></svg></button>
+    </div>
+    <div class="vol">
+      <button class="key" data-key="voldown" data-repeat><div><svg viewBox="0 0 24 24"><path d="M18.5 12A4.5 4.5 0 0 0 16 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02zM5 9v6h4l5 5V4L9 9H5z"/></svg><small>Vol −</small></div></button>
+      <button class="key" data-key="mute"><div><svg viewBox="0 0 24 24"><path d="M16.5 12A4.5 4.5 0 0 0 14 7.97v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51A8.8 8.8 0 0 0 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3 3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06a8.99 8.99 0 0 0 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4 9.91 6.09 12 8.18V4z"/></svg><small>Mute</small></div></button>
+      <button class="key" data-key="volup" data-repeat><div><svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg><small>Vol +</small></div></button>
+    </div>
+    <div class="card">
+      <h2>Type on the TV</h2>
+      <p class="sub small">Pick a search box on the TV first, then type here.</p>
+      <div class="type"><input id="type-text" placeholder="Search for…" enterkeyhint="search" autocomplete="off"><button class="btn primary" id="type-go"><svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z"/></svg></button></div>
+    </div>
+  </section>
+
+  <!-- Apps -->
+  <section id="t-apps" class="tab" hidden>
+    <div class="step">Apps on the TV</div>
+    <h1>Open or lock apps</h1>
+    <p class="sub">Tap an app to open it on the TV. Tap the lock to make it ask for the PIN.</p>
+    <div class="card row" id="applock-row" style="padding:14px 18px;margin-top:16px">
+      <div class="t"><b>Lock apps</b><span>Locked apps ask for the PIN when opened</span></div><span class="pill" data-set="appLock"></span>
+    </div>
+    <div class="apps" id="apps"><p class="small">Loading apps…</p></div>
+  </section>
+
+  <!-- Settings -->
+  <section id="t-settings" class="tab" hidden>
+    <div class="step">TV Lock settings</div>
+    <h1>Settings</h1>
+    <div class="card">
+      <div class="row" data-row="enabled"><div class="t"><b>Lock is on</b><span>Turn off to stop all locking</span></div><span class="pill" data-set="enabled"></span></div>
+      <div class="row" data-row="bootLock"><div class="t"><b>Lock when the TV starts</b><span>The PIN screen instead of the home screen</span></div><span class="pill" data-set="bootLock"></span></div>
+      <div class="row" data-row="lockOnWake"><div class="t"><b>Lock when the TV sleeps or switches inputs</b><span>The PIN is up when you come back</span></div><span class="pill" data-set="lockOnWake"></span></div>
+      <div class="row" data-row="relockOnHome"><div class="t"><b>Relock apps when you go home</b><span>Otherwise apps stay open until the TV sleeps</span></div><span class="pill" data-set="relockOnHome"></span></div>
+      <div class="row" style="cursor:default"><div class="t"><b>Lock when nobody uses the remote</b><span>Never while a video is playing</span></div>
+        <select id="idle" style="width:auto;height:44px"><option value="0">Never</option><option value="5">5 min</option><option value="10">10 min</option><option value="20">20 min</option><option value="30">30 min</option><option value="60">1 hour</option></select></div>
+    </div>
+    <div class="card">
+      <h2>Change PIN</h2>
+      <p class="sub small" id="pin-now" style="margin-bottom:12px"></p>
+      <select id="pin-kind" style="margin-bottom:10px">
+        <option value="PIN:4">4-digit PIN</option><option value="PIN:6">6-digit PIN</option>
+        <option value="PIN_ANY:0">PIN of any length (4–16)</option><option value="PASSWORD:0">Password</option>
+      </select>
+      <input id="pin-a" type="password" inputmode="numeric" placeholder="New PIN" autocomplete="new-password" style="margin-bottom:10px">
+      <input id="pin-b" type="password" inputmode="numeric" placeholder="Enter it again" autocomplete="new-password">
+      <p class="err" id="pin-err"></p>
+      <button class="btn primary wide" id="pin-go">Save new PIN</button>
+    </div>
+    <div class="card">
+      <h2>Phones</h2>
+      <p class="sub small" style="margin-bottom:6px">Phones that can control this TV. Add more from TV Lock → Phone on the TV.</p>
+      <div id="devs"></div>
+    </div>
+    <div class="card note"><svg viewBox="0 0 24 24"><path d="M12 2 1 21h22L12 2zm1 15h-2v-2h2v2zm0-4h-2V9h2v4z"/></svg>
+      <div>Phone control works on your home network only, in the same house as the TV. Nothing is opened on your router.</div></div>
+    <p class="small center" id="about"></p>
+  </section>
+</main>
+
+<nav class="tabs" id="tabs" hidden>
+  <button data-tab="lock" class="on"><svg viewBox="0 0 24 24"><path d="M18 8h-1V6a5 5 0 0 0-10 0v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2zm-6 9a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm3.1-9H8.9V6a3.1 3.1 0 0 1 6.2 0v2z"/></svg>Lock</button>
+  <button data-tab="remote"><svg viewBox="0 0 24 24"><path d="M15 9H9a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V10a1 1 0 0 0-1-1zm-3 6a2 2 0 1 1 0-4 2 2 0 0 1 0 4zM7.05 6.05l1.41 1.41a5 5 0 0 1 7.08 0l1.41-1.41a7 7 0 0 0-9.9 0zM12 1C8.96 1 6.21 2.23 4.22 4.22l1.41 1.41a9 9 0 0 1 12.73 0l1.41-1.41A10.96 10.96 0 0 0 12 1z"/></svg>Remote</button>
+  <button data-tab="apps"><svg viewBox="0 0 24 24"><path d="M4 8h4V4H4v4zm6 12h4v-4h-4v4zm-6 0h4v-4H4v4zm0-6h4v-4H4v4zm6 0h4v-4h-4v4zm6-10v4h4V4h-4zm-6 4h4V4h-4v4zm6 6h4v-4h-4v4zm0 6h4v-4h-4v4z"/></svg>Apps</button>
+  <button data-tab="settings"><svg viewBox="0 0 24 24"><path d="M19.14 12.94a7.07 7.07 0 0 0 0-1.88l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7 7 0 0 0-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84a.48.48 0 0 0-.47.41l-.36 2.54a7.3 7.3 0 0 0-1.62.94l-2.39-.96a.48.48 0 0 0-.59.22L2.74 8.87a.47.47 0 0 0 .12.61l2.03 1.58a7.4 7.4 0 0 0 0 1.88l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54a7.3 7.3 0 0 0 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.47.47 0 0 0-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"/></svg>Settings</button>
+</nav>
+<div id="toast"></div>
+
+<script>
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const KEY = 'tvlock.token';
+let token = localStorage.getItem(KEY), state = null, tab = 'lock';
+const ICON = {
+  lock: '<svg viewBox="0 0 24 24"><path d="M18 8h-1V6a5 5 0 0 0-10 0v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2zm-6 9a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm3.1-9H8.9V6a3.1 3.1 0 0 1 6.2 0v2z"/></svg>',
+  open: '<svg viewBox="0 0 24 24"><path d="M12 17a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm6-9h-1V6a5 5 0 0 0-9.9-1h2.05A3.1 3.1 0 0 1 15.1 6v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2zm0 12H6V10h12v10z"/></svg>',
+  phone: '<svg viewBox="0 0 24 24"><path d="M16 1H8a2.5 2.5 0 0 0-2.5 2.5v17A2.5 2.5 0 0 0 8 23h8a2.5 2.5 0 0 0 2.5-2.5v-17A2.5 2.5 0 0 0 16 1zm-4 21a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm4.5-4h-9V4h9v14z"/></svg>',
+};
+
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.classList.add('on');
+  clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('on'), 2200);
+}
+function buzz() { navigator.vibrate && navigator.vibrate(12); }
+
+async function api(path, body) {
+  const r = await fetch(path, {
+    method: body === undefined ? 'GET' : 'POST',
+    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (r.status === 401) { localStorage.removeItem(KEY); token = null; show(); throw new Error('not paired'); }
+  return r;
+}
+async function apiJson(path, body) { const r = await api(path, body); return r.json(); }
+
+// ---------------------------------------------------------------- views
+function show() {
+  const pairCode = new URLSearchParams(location.hash.slice(1)).get('p');
+  $('#v-pair').hidden = !pairCode;
+  $('#v-unpaired').hidden = !!pairCode || !!token;
+  $('#tabs').hidden = !token || !!pairCode;
+  $('#conn').hidden = !token;
+  $$('.tab').forEach(s => s.hidden = !token || !!pairCode || s.id !== 't-' + tab);
+  if (pairCode) $('#pair-name').value ||= guessName();
+}
+function guessName() {
+  const ua = navigator.userAgent;
+  if (/iPhone/.test(ua)) return 'iPhone';
+  if (/iPad/.test(ua)) return 'iPad';
+  const m = ua.match(/Android [^;]*; ([^;)]+?)(?: Build|\))/);
+  if (m && m[1] && !/^K$/.test(m[1])) return m[1].trim();
+  return /Android/.test(ua) ? 'Android phone' : 'Phone';
+}
+$$('.tabs button').forEach(b => b.onclick = () => {
+  tab = b.dataset.tab; $$('.tabs button').forEach(x => x.classList.toggle('on', x === b)); show(); buzz();
+  if (tab === 'apps') loadApps();
+  scrollTo(0, 0);
+});
+
+// ---------------------------------------------------------------- pairing
+$('#pair-go').onclick = async () => {
+  const code = new URLSearchParams(location.hash.slice(1)).get('p');
+  $('#pair-err').textContent = '';
+  $('#pair-go').disabled = true;
+  try {
+    const r = await fetch('/api/pair', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, name: $('#pair-name').value }) });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Could not add this phone');
+    token = j.token; localStorage.setItem(KEY, token);
+    history.replaceState(null, '', '/');
+    show(); poll(); toast('Phone added. You can control the TV now.');
+  } catch (e) { $('#pair-err').textContent = e.message; }
+  $('#pair-go').disabled = false;
+};
+
+// ---------------------------------------------------------------- state
+async function poll() {
+  if (!token) return;
+  try {
+    state = await apiJson('/api/state');
+    $('#conn').classList.remove('off');
+    render();
+  } catch (e) { $('#conn').classList.add('off'); }
+}
+setInterval(() => { if (document.visibilityState === 'visible') poll(); }, 2000);
+document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && poll());
+
+function render() {
+  const tv = state.tv, s = state.settings;
+  $('#tvname').textContent = tv.name;
+  const locked = !!tv.lock;
+  $('#hero').classList.toggle('locked', locked);
+  $('#hero-badge').innerHTML = locked ? ICON.lock : ICON.open;
+  $('#hero-state').textContent = !tv.awake ? 'TV is asleep' : locked ? (tv.lock === 'app' ? tv.lockApp + ' is locked' : 'TV is locked') : 'TV is unlocked';
+  $('#hero-sub').textContent = !tv.service ? 'TV Lock is not running on the TV (Accessibility is off).'
+    : locked ? 'The PIN screen is showing on the TV.' : (tv.foreground ? 'Watching: ' + tv.foreground : 'Ready');
+  const hb = $('#hero-btn');
+  hb.innerHTML = locked ? ICON.open + 'Unlock TV' : ICON.lock + 'Lock TV now';
+  hb.onclick = async () => { buzz(); hb.disabled = true;
+    try { await api(locked ? '/api/unlock' : '/api/lock', {}); toast(locked ? 'Unlocked' : 'Locked'); await poll(); } finally { hb.disabled = false; } };
+  const parts = [];
+  if (s.bootLock) parts.push('when the TV starts');
+  if (s.appLock) parts.push(s.lockedApps.length + ' app' + (s.lockedApps.length === 1 ? '' : 's'));
+  $('#sum-mode').textContent = !s.enabled ? 'Lock is off' : 'Locks ' + (parts.join(' and ') || 'nothing yet');
+  $('#sum-now').textContent = 'TV Lock ' + tv.version + ' · ' + (tv.address || '');
+  $$('[data-set]').forEach(p => p.classList.toggle('on', !!s[p.dataset.set]));
+  if (document.activeElement !== $('#idle')) $('#idle').value = String(s.idleMinutes);
+  $('#pin-now').textContent = 'Now: ' + ({ PIN: s.pinLength + '-digit PIN', PIN_ANY: 'PIN of any length', PASSWORD: 'password' })[s.kind];
+  $('#about').textContent = tv.name + ' · Android ' + tv.android + ' · TV Lock ' + tv.version;
+  renderDevices();
+  $('#screen-toggle').style.display = tv.screen ? '' : 'none';
+}
+
+function renderDevices() {
+  const box = $('#devs');
+  const sig = JSON.stringify(state.devices);
+  if (box.dataset.sig === sig) return;
+  box.dataset.sig = sig; box.innerHTML = '';
+  state.devices.forEach(d => {
+    const el = document.createElement('div'); el.className = 'dev';
+    el.innerHTML = `<span class="badge sm">${ICON.phone}</span><div class="t"><b></b><span></span></div>`;
+    el.querySelector('b').textContent = d.name + (d.me ? ' (this phone)' : '');
+    el.querySelector('span:last-child').textContent = 'Added ' + new Date(d.added).toLocaleDateString();
+    const b = document.createElement('button'); b.className = 'btn' + (d.me ? '' : ' danger');
+    b.textContent = d.me ? 'Rename' : 'Remove';
+    b.onclick = async () => {
+      if (d.me) {
+        const n = prompt('Name this phone', d.name); if (!n) return;
+        await api('/api/devices/rename', { id: d.id, name: n });
+      } else {
+        if (!confirm('Remove ' + d.name + '? It will no longer control the TV.')) return;
+        await api('/api/devices/remove', { id: d.id });
+      }
+      poll();
+    };
+    el.appendChild(b); box.appendChild(el);
+  });
+}
+
+// settings toggles
+$$('[data-set]').forEach(p => (p.closest('.row') || p).addEventListener('click', async () => {
+  if (!state) return;
+  const k = p.dataset.set, v = !state.settings[k];
+  state.settings[k] = v; p.classList.toggle('on', v); buzz();
+  await api('/api/settings', { [k]: v }); poll();
+}));
+$('#idle').onchange = async e => { await api('/api/settings', { idleMinutes: +e.target.value }); toast('Saved'); poll(); };
+$('#pin-kind').onchange = () => {
+  const pw = $('#pin-kind').value.startsWith('PASSWORD');
+  ['#pin-a', '#pin-b'].forEach(s => { $(s).inputMode = pw ? 'text' : 'numeric'; });
+  $('#pin-a').placeholder = pw ? 'New password' : 'New PIN';
+};
+$('#pin-go').onclick = async () => {
+  const [kind, len] = $('#pin-kind').value.split(':'), a = $('#pin-a').value, b = $('#pin-b').value;
+  const err = $('#pin-err'); err.textContent = '';
+  if (a !== b) { err.textContent = "Those don't match."; return; }
+  if (kind === 'PIN' && a.length !== +len) { err.textContent = 'Enter exactly ' + len + ' digits.'; return; }
+  const r = await api('/api/pin', { pin: a, kind });
+  const j = await r.json();
+  if (!r.ok) { err.textContent = j.error; return; }
+  $('#pin-a').value = $('#pin-b').value = ''; toast('New PIN saved'); poll();
+};
+
+// ---------------------------------------------------------------- remote
+async function key(k) {
+  buzz();
+  try { const j = await apiJson('/api/key', { key: k }); if (!j.ok) toast("The TV couldn't do that"); } catch (e) {}
+  if (k === 'wake' || k === 'sleep') setTimeout(poll, 1500);
+}
+$$('[data-key]').forEach(b => {
+  let rep = null, timer = null;
+  const stop = () => { clearTimeout(timer); clearInterval(rep); timer = rep = null; };
+  if (b.hasAttribute('data-repeat')) {
+    b.addEventListener('pointerdown', e => {
+      e.preventDefault(); key(b.dataset.key);
+      timer = setTimeout(() => rep = setInterval(() => key(b.dataset.key), 140), 420);
+    });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => b.addEventListener(ev, stop));
+  } else b.addEventListener('click', () => key(b.dataset.key));
+});
+async function sendText() {
+  const t = $('#type-text').value;
+  const j = await apiJson('/api/text', { text: t, submit: true });
+  toast(j.ok ? 'Sent to the TV' : 'Select a search box on the TV first');
+  if (j.ok) $('#type-text').value = '';
+}
+$('#type-go').onclick = sendText;
+$('#type-text').addEventListener('keydown', e => { if (e.key === 'Enter') sendText(); });
+
+// live screen
+let screenOn = false;
+$('#screen-toggle').onclick = () => {
+  screenOn = !screenOn; buzz();
+  $('#screen-pill').classList.toggle('on', screenOn); $('#screen').hidden = !screenOn;
+  if (screenOn) screenLoop();
+};
+async function screenLoop() {
+  while (screenOn) {
+    if (document.visibilityState === 'visible' && tab === 'remote') {
+      try {
+        const r = await api('/api/screen.jpg');
+        if (r.ok) {
+          const url = URL.createObjectURL(await r.blob());
+          const box = $('#screen'); const old = box.querySelector('img');
+          const img = new Image(); img.src = url; img.onload = () => { box.innerHTML = ''; box.appendChild(img); if (old) URL.revokeObjectURL(old.src); };
+        } else { $('#screen').innerHTML = '<span>The TV can’t share its screen right now</span>'; }
+      } catch (e) {}
+    }
+    await new Promise(r => setTimeout(r, 900));
+  }
+}
+
+// ---------------------------------------------------------------- apps
+let appsLoaded = false;
+async function loadApps() {
+  if (appsLoaded) return; appsLoaded = true;
+  const { apps } = await apiJson('/api/apps');
+  const box = $('#apps'); box.innerHTML = '';
+  const queue = [];
+  apps.forEach(a => {
+    const el = document.createElement('div'); el.className = 'app' + (a.locked ? ' locked' : '');
+    el.innerHTML = `<div class="art"></div><div class="name"></div><button class="lk">${ICON.lock}</button>`;
+    el.querySelector('.name').textContent = a.label;
+    el.onclick = async e => {
+      if (e.target.closest('.lk')) return;
+      buzz(); const j = await apiJson('/api/launch', { pkg: a.pkg }); toast(j.ok ? 'Opening ' + a.label : "Couldn't open " + a.label);
+    };
+    el.querySelector('.lk').onclick = async () => {
+      buzz();
+      const set = new Set(state.settings.lockedApps);
+      set.has(a.pkg) ? set.delete(a.pkg) : set.add(a.pkg);
+      const locked = set.has(a.pkg); el.classList.toggle('locked', locked);
+      state.settings.lockedApps = [...set];
+      const body = { lockedApps: [...set] };
+      if (locked && !state.settings.appLock) body.appLock = true;
+      await api('/api/settings', body);
+      toast(locked ? a.label + ' will ask for the PIN' : a.label + ' is no longer locked'); poll();
+    };
+    box.appendChild(el); queue.push([a, el.querySelector('.art')]);
+  });
+  // Icons, four at a time.
+  const worker = async () => { while (queue.length) { const [a, art] = queue.shift();
+    try { const r = await api('/api/icon?pkg=' + encodeURIComponent(a.pkg)); if (r.ok) {
+      const img = new Image(); img.src = URL.createObjectURL(await r.blob()); if (!a.wide) img.className = 'sq'; art.appendChild(img); } } catch (e) {} } };
+  for (let i = 0; i < 4; i++) worker();
+}
+
+window.addEventListener('hashchange', show);
+show();
+if (token) poll();
+</script>
+</body>
+</html>

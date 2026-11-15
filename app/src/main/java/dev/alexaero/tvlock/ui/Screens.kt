@@ -56,7 +56,7 @@ private val PAGE_V = 36.dp
  */
 private fun Modifier.page() = padding(horizontal = PAGE_H, vertical = PAGE_V)
 
-private enum class Screen { WELCOME, PERMISSIONS, MODE, APPS, KIND, CREATE, CONFIRM, TEST, HOME, OPTIONS, UPDATES }
+private enum class Screen { WELCOME, PERMISSIONS, MODE, APPS, KIND, CREATE, CONFIRM, TEST, HOME, OPTIONS, UPDATES, PHONE }
 
 @Composable
 fun TvLockApp(authed: MutableState<Boolean>, finish: () -> Unit) {
@@ -139,7 +139,8 @@ fun TvLockApp(authed: MutableState<Boolean>, finish: () -> Unit) {
                         }
                     }
                 }
-                Screen.TEST -> TestScreen(prefs, setup) { setup = false; home() }
+                Screen.TEST -> TestScreen(prefs, setup) { if (setup) go(Screen.PHONE) else home() }
+                Screen.PHONE -> PhoneScreen(prefs, setup) { setup = false; home() }
                 Screen.HOME -> Home(prefs) { go(it) }
                 Screen.OPTIONS -> Options(prefs)
                 Screen.UPDATES -> Updates()
@@ -541,7 +542,7 @@ private fun TestScreen(prefs: Prefs, setup: Boolean, done: () -> Unit) {
                     if (setup) "Step 5 of 5" else null,
                 )
             }
-            TvButton(if (setup) "Finish" else "Done", done, icon = Icons.Rounded.Check, primary = result == true, focusRequester = finish)
+            TvButton(if (setup) "Next" else "Done", done, icon = if (setup) Icons.AutoMirrored.Rounded.ArrowForward else Icons.Rounded.Check, primary = result == true, focusRequester = finish)
         }
         Spacer(Modifier.height(26.dp))
         if (!running) {
@@ -635,6 +636,15 @@ private fun Home(prefs: Prefs, open: (Screen) -> Unit) {
         if (!enabled) "Off: nothing is locked" else "Locks " + parts.joinToString(" and ")
     }
     val update by Updater.state.collectAsState()
+    val devChanges by Remote.devicesChanged.collectAsState()
+    val phones = remember(tick, devChanges) {
+        val n = Devices.list(prefs).size
+        when {
+            n == 0 -> "Control the TV from your phone"
+            !prefs.phoneAccess -> "Phone access is off"
+            else -> "$n phone${if (n == 1) "" else "s"} can control the TV"
+        }
+    }
     LaunchedEffect(Unit) { if (Updater.state.value == Updater.State.Idle) Updater.check(ctx) }
     val noun = nounFor(prefs.secretKind)
     val kindText = when (prefs.secretKind) {
@@ -679,6 +689,7 @@ private fun Home(prefs: Prefs, open: (Screen) -> Unit) {
             add(Triple(Icons.Rounded.Pin, "Change $noun", kindText) to Screen.KIND)
             add(Triple(Icons.Rounded.Science, "Test the lock", "Try it safely") to Screen.TEST)
             add(Triple(Icons.Rounded.Settings, "Options", "Sleep, inputs, relock") to Screen.OPTIONS)
+            add(Triple(Icons.Rounded.PhoneAndroid, "Phone", phones) to Screen.PHONE)
             add(Triple(Icons.Rounded.Accessibility, "Permissions", if (a11y) "All good" else "Needs attention") to Screen.PERMISSIONS)
             add(Triple(Icons.Rounded.SystemUpdate, "Updates", when (val u = update) {
                 is Updater.State.Available -> "Version ${u.release.version} is ready"
@@ -862,3 +873,170 @@ private fun Updates() {
     }
 }
 
+
+// ---------------------------------------------------------------- phone
+
+@Composable
+private fun PhoneScreen(prefs: Prefs, setup: Boolean, done: () -> Unit) {
+    val ctx = LocalContext.current
+    var access by remember { mutableStateOf(prefs.phoneAccess || Devices.list(prefs).isEmpty()) }
+    LaunchedEffect(access) {
+        prefs.phoneAccess = access
+        Remote.sync(ctx)
+    }
+    val changed by Remote.devicesChanged.collectAsState()
+    val devices = remember(changed) { Devices.list(prefs) }
+    val justPaired by Remote.justPaired.collectAsState()
+    var code by remember { mutableStateOf<String?>(null) }
+    var base by remember { mutableStateOf(Remote.baseUrl()) }
+    LaunchedEffect(Unit) { Remote.justPaired.value = null }
+    // A fresh one-time code while this page is open; a new one after each phone is added.
+    LaunchedEffect(access, justPaired) {
+        if (!access) { Remote.endPairing(); code = null; return@LaunchedEffect }
+        while (true) {
+            base = Remote.baseUrl()
+            code = Remote.newPairCode()
+            kotlinx.coroutines.delay(9 * 60_000L)
+        }
+    }
+    DisposableEffect(Unit) { onDispose { Remote.endPairing() } }
+    val fr = remember { FocusRequester() }
+    InitialFocus(fr)
+    val url = if (access && base != null && code != null) "$base/#p=$code" else null
+
+    Row(Modifier.fillMaxSize().page(), verticalAlignment = Alignment.Top) {
+        Column(Modifier.width(300.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Spacer(Modifier.height(10.dp))
+            Box(
+                Modifier.size(290.dp).clip(RoundedCornerShape(28.dp))
+                    .background(if (url != null) C.cream else C.card).padding(22.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (url != null) QrCode(url, Modifier.fillMaxSize())
+                else Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Rounded.WifiOff, null, Modifier.size(48.dp), tint = C.dim)
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        if (!access) "Phone access is off" else "The TV isn't on a network",
+                        color = C.dim, style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+            Text(base ?: "", style = MaterialTheme.typography.titleMedium, color = C.latte)
+            Text("Code changes after each phone", style = MaterialTheme.typography.bodyMedium, color = C.dim)
+        }
+        Spacer(Modifier.width(44.dp))
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(vertical = 4.dp)) {
+            Row(verticalAlignment = Alignment.Top) {
+                Box(Modifier.weight(1f)) {
+                    ScreenTitle(
+                        "Add your phone",
+                        "Unlock the TV, use your phone as a remote and change TV Lock's settings.",
+                        if (setup) "Optional" else null,
+                    )
+                }
+                Spacer(Modifier.width(16.dp))
+                TvButton(
+                    if (setup && devices.isEmpty()) "Not now" else "Done", done,
+                    icon = Icons.Rounded.Check, primary = devices.isNotEmpty(), focusRequester = fr,
+                )
+            }
+            justPaired?.let {
+                Spacer(Modifier.height(16.dp))
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(C.good.copy(alpha = 0.14f)).padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Rounded.CheckCircle, null, tint = C.good)
+                    Spacer(Modifier.width(12.dp))
+                    Text("$it was added. It can control this TV now.", color = C.good, style = MaterialTheme.typography.titleMedium)
+                }
+            }
+            Spacer(Modifier.height(20.dp))
+            listOf(
+                "Connect your phone to your home Wi-Fi.",
+                "Point the phone's camera at the code.",
+                "Open the link and press Add phone.",
+            ).forEachIndexed { i, t ->
+                Row(Modifier.padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(32.dp).clip(CircleShape).background(C.accent), contentAlignment = Alignment.Center) {
+                        Text("${i + 1}", color = C.focusText, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(Modifier.width(14.dp))
+                    Text(t, style = MaterialTheme.typography.bodyLarge)
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(C.warn.copy(alpha = 0.10f)).padding(18.dp),
+                verticalAlignment = Alignment.Top,
+            ) {
+                Icon(Icons.Rounded.Home, null, tint = C.warn)
+                Spacer(Modifier.width(14.dp))
+                Column {
+                    Text("Works at home only", style = MaterialTheme.typography.titleMedium, color = C.warn)
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        "Your phone talks to the TV over your home network, so it has to be in the same house, on Wi-Fi " +
+                            "that can reach the TV. It won't work from outside: that would need opening a port on your " +
+                            "router, and TV Lock doesn't do that to keep your home network safe.",
+                        style = MaterialTheme.typography.bodyMedium, color = C.dim,
+                    )
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+            TvToggle(
+                "Phone access", if (access) "Paired phones can unlock and control this TV" else "No phone can control this TV",
+                access, { access = it }, Modifier.fillMaxWidth(),
+            )
+            if (devices.isNotEmpty()) {
+                Spacer(Modifier.height(22.dp))
+                Text("Paired phones", style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.height(8.dp))
+                devices.forEach { d ->
+                    Row(
+                        Modifier.fillMaxWidth().padding(vertical = 6.dp).clip(RoundedCornerShape(18.dp)).background(C.card)
+                            .padding(horizontal = 18.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Badge(Icons.Rounded.PhoneAndroid, 40.dp)
+                        Spacer(Modifier.width(14.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(d.name, style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                "Added " + android.text.format.DateFormat.getMediumDateFormat(ctx).format(java.util.Date(d.added)),
+                                style = MaterialTheme.typography.bodyMedium, color = C.dim,
+                            )
+                        }
+                        TvButton("Remove", { Devices.remove(prefs, d.id) }, icon = Icons.Rounded.DeleteOutline)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun QrCode(text: String, modifier: Modifier) {
+    val m = remember(text) {
+        com.google.zxing.qrcode.QRCodeWriter().encode(
+            text, com.google.zxing.BarcodeFormat.QR_CODE, 0, 0,
+            mapOf(
+                com.google.zxing.EncodeHintType.MARGIN to 0,
+                com.google.zxing.EncodeHintType.ERROR_CORRECTION to com.google.zxing.qrcode.decoder.ErrorCorrectionLevel.M,
+            ),
+        )
+    }
+    androidx.compose.foundation.Canvas(modifier) {
+        val n = m.width
+        val cell = size.minDimension / n
+        for (y in 0 until n) for (x in 0 until n) {
+            if (m.get(x, y)) drawRect(
+                C.focusText,
+                topLeft = androidx.compose.ui.geometry.Offset(x * cell, y * cell),
+                size = androidx.compose.ui.geometry.Size(cell + 0.6f, cell + 0.6f),
+            )
+        }
+    }
+}

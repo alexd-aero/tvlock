@@ -89,7 +89,9 @@ class LockService : AccessibilityService() {
             addAction(Intent.ACTION_SCREEN_ON)
             addAction(AudioManager.ACTION_HDMI_AUDIO_PLUG)
         }, ContextCompat.RECEIVER_NOT_EXPORTED)
+        instance = this
         LockState.serviceRunning.value = true
+        Remote.sync(this)
         LockState.lastActivity = SystemClock.elapsedRealtime()
         watchIdle()
         if (prefs.bootLockDue()) LockState.current.value = Lock.Boot
@@ -196,6 +198,11 @@ class LockService : AccessibilityService() {
 
     override fun onInterrupt() {}
 
+    companion object {
+        /** The running service, for the phone remote. */
+        @Volatile var instance: LockService? = null
+    }
+
     override fun onUnbind(intent: Intent?): Boolean {
         teardown()
         return super.onUnbind(intent)
@@ -211,6 +218,7 @@ class LockService : AccessibilityService() {
     private fun teardown() {
         if (tornDown || !::prefs.isInitialized) return
         tornDown = true
+        if (instance === this) instance = null
         LockState.serviceRunning.value = false
         runCatching { unregisterReceiver(screen) }
         overlay.hide()

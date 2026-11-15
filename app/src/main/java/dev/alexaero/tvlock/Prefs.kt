@@ -22,6 +22,11 @@ class Prefs(ctx: Context) {
     /** Lock after this many minutes without remote use (0 = never). Skipped while a video plays. */
     var idleMinutes by int("idleMinutes", 20)
 
+    /** Paired phones may reach TV Lock's web remote on the home network. */
+    var phoneAccess by bool("phoneAccess", false)
+    /** JSON array of paired phones (see [Devices]). */
+    var devices by str("devices")
+
     var lockedApps: Set<String>
         get() = sp.getStringSet("lockedApps", emptySet())!!.toSet()
         set(v) = sp.edit().putStringSet("lockedApps", v).apply()
