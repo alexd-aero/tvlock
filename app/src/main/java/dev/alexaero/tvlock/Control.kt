@@ -49,9 +49,12 @@ object Control {
             .put("android", Build.VERSION.RELEASE)
             .put("service", svc != null)
             .put("awake", ctx.getSystemService(PowerManager::class.java).isInteractive)
-            .put("lock", when (lock) { Lock.Boot -> "tv"; is Lock.App -> "app"; Lock.Test -> "test"; null -> null })
+            .put("lock", when (lock) {
+                Lock.Boot -> "tv"; is Lock.App -> "app"; Lock.Test -> "test"
+                null -> if (LockState.gate.value && LockState.settingsOpen.value) "settings" else null
+            })
             .put("lockApp", (lock as? Lock.App)?.let { Apps.label(ctx, it.pkg) })
-            .put("foreground", fg?.let { Apps.label(ctx, it) })
+            .put("foreground", if (LockState.settingsOpen.value) "TV Lock settings" else fg?.let { Apps.label(ctx, it) })
             .put("address", Remote.baseUrl())
         val settings = JSONObject()
             .put("enabled", p.enabled).put("bootLock", p.bootLock).put("appLock", p.appLock)
@@ -68,10 +71,16 @@ object Control {
 
     // ------------------------------------------------------------- lock
 
-    fun unlock(ctx: Context): Boolean = onMain {
-        if (LockState.current.value == null) return@onMain false
-        Secret.recordSuccess(Prefs(ctx))
-        LockState.unlock(ctx)
+    fun unlock(ctx: Context, me: Device): Boolean = onMain {
+        val p = Prefs(ctx)
+        if (LockState.current.value == null) {
+            if (!(LockState.gate.value && LockState.settingsOpen.value)) return@onMain false
+            LockState.gateUnlocks.value++
+            return@onMain true
+        }
+        Secret.recordSuccess(p)
+        // Greet the person this phone belongs to.
+        LockState.unlock(ctx, Profiles.get(p, me.profileId))
         true
     }
 
@@ -226,6 +235,7 @@ object Control {
             val a = b.getJSONArray("lockedApps")
             p.lockedApps = (0 until a.length()).map { a.getString(it) }.toSet()
         }
+        Live.bump()
         return true
     }
 

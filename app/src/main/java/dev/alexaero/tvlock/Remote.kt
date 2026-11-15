@@ -18,9 +18,14 @@ import java.security.MessageDigest
 import java.security.SecureRandom
 
 /** A phone paired with this TV. Only a hash of its token is kept. */
-data class Device(val id: String, val name: String, val hash: String, val added: Long, val lastSeen: Long) {
+data class Device(
+    val id: String, val name: String, val hash: String, val added: Long, val lastSeen: Long,
+    /** The person using this phone (their profile), so unlocking from it greets them. */
+    val profileId: String? = null,
+) {
     fun json(me: Boolean = false) = JSONObject()
         .put("id", id).put("name", name).put("added", added).put("lastSeen", lastSeen).put("me", me)
+        .put("profile", profileId ?: JSONObject.NULL)
 }
 
 object Devices {
@@ -28,7 +33,8 @@ object Devices {
         val a = JSONArray(p.devices ?: "[]")
         (0 until a.length()).map {
             val o = a.getJSONObject(it)
-            Device(o.getString("id"), o.getString("name"), o.getString("hash"), o.optLong("added"), o.optLong("lastSeen"))
+            Device(o.getString("id"), o.getString("name"), o.getString("hash"), o.optLong("added"), o.optLong("lastSeen"),
+                o.optString("profile").ifEmpty { null })
         }
     }.getOrDefault(emptyList())
 
@@ -37,7 +43,7 @@ object Devices {
         val a = JSONArray()
         list.forEach {
             a.put(JSONObject().put("id", it.id).put("name", it.name).put("hash", it.hash)
-                .put("added", it.added).put("lastSeen", it.lastSeen))
+                .put("added", it.added).put("lastSeen", it.lastSeen).put("profile", it.profileId ?: ""))
         }
         p.devices = a.toString()
         Remote.devicesChanged.value++
@@ -52,6 +58,8 @@ object Devices {
     }
 
     fun remove(p: Prefs, id: String) = save(p, list(p).filter { it.id != id })
+
+    fun link(p: Prefs, id: String, profileId: String?) = save(p, list(p).map { if (it.id == id) it.copy(profileId = profileId) else it })
 }
 
 /**
@@ -135,9 +143,17 @@ object Remote {
         return tok to addDevice(p, tok, name)
     }
 
-    fun addDevice(p: Prefs, token: String, name: String): Device {
+    /** Join an already set-up TV with any profile's PIN; the PIN also says who this phone belongs to. */
+    @Synchronized
+    fun pairWithPin(p: Prefs, pin: String, name: String): Triple<String, Device, Profile>? {
+        val who = Profiles.match(p, pin) ?: return null
+        val tok = token(32)
+        return Triple(tok, addDevice(p, tok, name, who.id), who)
+    }
+
+    fun addDevice(p: Prefs, token: String, name: String, profileId: String? = null): Device {
         val now = System.currentTimeMillis()
-        val d = Device(token(6), name.trim().take(40).ifEmpty { "Phone" }, Devices.hash(token), now, now)
+        val d = Device(token(6), name.trim().take(40).ifEmpty { "Phone" }, Devices.hash(token), now, now, profileId)
         Devices.save(p, Devices.list(p) + d)
         justPaired.value = d.name
         return d
@@ -205,9 +221,27 @@ private class Server(private val ctx: Context) : NanoHTTPD(Remote.PORT) {
                 return newFixedLengthResponse(Response.Status.OK, "application/vnd.android.package-archive", apk.inputStream(), apk.length())
                     .apply { addHeader("Content-Disposition", "attachment; filename=\"TV-Lock-${Updater.current(ctx)}.apk\"") }
             }
+            "/api/pair-pin" -> if (post) {
+                val b = body(s)
+                val now = System.currentTimeMillis()
+                if (now < prefs.lockoutUntil) {
+                    val secs = (prefs.lockoutUntil - now) / 1000 + 1
+                    return json(JSONObject().put("error", "Too many wrong PINs. Try again in $secs seconds."), Response.Status.TOO_MANY_REQUESTS)
+                }
+                val res = Remote.pairWithPin(prefs, b.optString("pin"), b.optString("name"))
+                if (res == null) {
+                    Secret.recordFail(prefs)
+                    val left = (5 - prefs.fails).coerceAtLeast(0)
+                    return json(JSONObject().put("error", if (left > 0) "That PIN isn't right. $left tries left." else "Too many wrong PINs. Wait a moment."),
+                        Response.Status.FORBIDDEN)
+                }
+                Secret.recordSuccess(prefs)
+                return json(JSONObject().put("token", res.first).put("device", res.second.json(true)).put("profile", res.third.json()))
+            }
             "/api/hello" -> return json(
                 JSONObject().put("app", "tvlock").put("name", Remote.tvName()).put("version", Updater.current(ctx))
                     .put("setupDone", prefs.setupDone).put("pairing", Remote.pairingOpen)
+                    .put("service", LockService.instance != null)
             )
             "/api/pair" -> if (post) {
                 val b = body(s)
@@ -227,6 +261,8 @@ private class Server(private val ctx: Context) : NanoHTTPD(Remote.PORT) {
 
         return when (path) {
             "/api/state" -> json(Control.state(ctx, me))
+            "/api/events" -> newChunkedResponse(Response.Status.OK, "text/event-stream", Live.stream(ctx, me.id))
+                .apply { setGzipEncoding(false) }
             "/api/apps" -> json(JSONObject().put("apps", Control.apps(ctx)))
             "/api/icon" -> Control.icon(ctx, s.parms["pkg"].orEmpty())
                 ?.let { newFixedLengthResponse(Response.Status.OK, "image/png", ByteArrayInputStream(it), it.size.toLong()) }
@@ -251,7 +287,18 @@ private class Server(private val ctx: Context) : NanoHTTPD(Remote.PORT) {
                 if (!post) return newFixedLengthResponse(Response.Status.METHOD_NOT_ALLOWED, MIME_PLAINTEXT, "")
                 val b = body(s)
                 val ok = when (path) {
-                    "/api/unlock" -> Control.unlock(ctx)
+                    "/api/unlock" -> Control.unlock(ctx, me)
+                    "/api/me/link" -> {
+                        val pid = b.optString("profile")
+                        if (Profiles.get(prefs, pid) == null) return json(JSONObject().put("error", "No such profile."), Response.Status.BAD_REQUEST)
+                        Devices.link(prefs, me.id, pid); true
+                    }
+                    "/api/me/link-pin" -> {
+                        val who = Profiles.match(prefs, b.optString("pin"))
+                            ?: return json(JSONObject().put("error", "That PIN isn't right."), Response.Status.FORBIDDEN)
+                        Devices.link(prefs, me.id, who.id)
+                        return json(JSONObject().put("ok", true).put("profile", who.json()))
+                    }
                     "/api/lock" -> Control.lockNow(ctx)
                     "/api/key" -> Control.key(ctx, b.optString("key"))
                     "/api/text" -> Control.type(b.optString("text"), b.optBoolean("submit"))

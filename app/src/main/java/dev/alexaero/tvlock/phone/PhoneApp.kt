@@ -75,6 +75,12 @@ private sealed interface P {
     data object Pin : P
     data object Done : P
     data object Remote : P
+    /** Joined a TV that's already set up: who is using this phone? */
+    data object Who : P
+    /** Create a profile for this phone's person (TV already set up). */
+    data object NewMe : P
+    /** "How do you want to appear?" for an existing profile. */
+    data class Me(val profileId: String) : P
 }
 
 /** The phone side of TV Lock: finds the TV, sets it up, then becomes the remote. */
@@ -102,17 +108,24 @@ fun PhoneApp(startLink: Uri?) {
     when (val s = stack.last()) {
         P.Welcome -> Welcome { go(P.Scan) }
         P.Scan -> ScanScreen(scanner, ::back) { go(P.Tv(it)) }
-        is P.Tv -> TvScreen(s.tv, ::back, auto = { go(P.Auto(s.tv)) }) { token, name ->
+        is P.Tv -> TvScreen(s.tv, ::back, auto = { go(P.Auto(s.tv)) }) { token, name, profileId ->
             store.save(s.tv.host, token, name)
-            reset(if (s.tv.setupDone == true) P.Done else P.Mode)
+            reset(when {
+                profileId != null -> P.Me(profileId)
+                s.tv.setupDone == true -> P.Who
+                else -> P.Mode
+            })
         }
         is P.Linking -> Linking(s, store, onFail = { reset(P.Welcome) }) { setupDone ->
-            reset(if (setupDone) P.Done else P.Mode)
+            reset(if (setupDone) P.Who else P.Mode)
         }
-        is P.Auto -> AutoScreen(s.tv, store, ::back) { setupDone -> reset(if (setupDone) P.Done else P.Mode) }
+        is P.Auto -> AutoScreen(s.tv, store, ::back) { setupDone -> reset(if (setupDone) P.Who else P.Mode) }
+        P.Who -> api?.let { WhoScreen(it, me = { id -> reset(P.Me(id)) }, create = { go(P.NewMe) }) { reset(P.Remote) } }
+        P.NewMe -> api?.let { PinScreen(it, ::back, setupTv = false) { reset(P.Remote) } }
+        is P.Me -> api?.let { MeScreen(it, s.profileId) { reset(P.Remote) } }
         P.Mode -> api?.let { ModeScreen(it, auto = { tv -> go(P.Auto(tv)) }) { appLock -> go(if (appLock) P.Apps else P.Pin) } }
         P.Apps -> api?.let { AppsScreen(it, ::back) { go(P.Pin) } }
-        P.Pin -> api?.let { PinScreen(it, ::back) { reset(P.Done) } }
+        P.Pin -> api?.let { PinScreen(it, ::back, setupTv = true) { reset(P.Done) } }
         P.Done -> DoneScreen(store.name) { reset(P.Remote) }
         P.Remote -> RemoteScreen(store, forget = { store.clear(); reset(P.Welcome) }, find = { go(P.Scan) })
     }
@@ -351,13 +364,66 @@ private fun ScanScreen(scanner: Scanner, back: () -> Unit, pick: (FoundTv) -> Un
 }
 
 @Composable
-private fun TvScreen(tv: FoundTv, back: () -> Unit, auto: () -> Unit, paired: (String, String) -> Unit) {
+private fun TvScreen(tv: FoundTv, back: () -> Unit, auto: () -> Unit, paired: (String, String, String?) -> Unit) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     var code by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var err by remember { mutableStateOf<String?>(null) }
-    Page(step = "Step 2", title = tv.title, sub = tv.ip, onBack = back) {
+    var pin by remember { mutableStateOf("") }
+    var pinBusy by remember { mutableStateOf(false) }
+    var pinErr by remember { mutableStateOf<String?>(null) }
+    val setUp = tv.setupDone == true
+    if (setUp) Page(
+        step = "Join", title = tv.title,
+        sub = "TV Lock is already set up on this TV, so this phone just joins it.", onBack = back,
+    ) {
+        PCard(highlight = true) {
+            Text("Enter your PIN", color = C.text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text("The PIN you use on this TV. It also tells the TV who you are.", color = C.dim, fontSize = 15.sp)
+            Spacer(Modifier.height(12.dp))
+            Field(pin, { pin = it.take(32); pinErr = null }, "Your PIN", KeyboardType.NumberPassword, secret = true)
+            pinErr?.let { Text(it, color = C.error, fontSize = 14.sp, modifier = Modifier.padding(top = 8.dp)) }
+            PButton("Join", {
+                pinBusy = true
+                scope.launch {
+                    try {
+                        val j = withContext(Dispatchers.IO) {
+                            TvApi(tv.host).post("/api/pair-pin", JSONObject().put("pin", pin).put("name", PhoneStore.phoneName(ctx)))
+                        }
+                        paired(j.getString("token"), tv.title, j.getJSONObject("profile").getString("id"))
+                    } catch (e: Exception) {
+                        pinErr = e.message ?: "Couldn't connect"
+                    }
+                    pinBusy = false
+                }
+            }, icon = Icons.Rounded.Login, primary = true, busy = pinBusy, enabled = pin.length >= 4, modifier = Modifier.padding(top = 10.dp))
+        }
+        PCard {
+            Text("New here?", color = C.text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text("No PIN yet? On the TV, open TV Lock → Phone and type the 6-digit code here. Then you'll make your own PIN.",
+                color = C.dim, fontSize = 15.sp, lineHeight = 21.sp)
+            Spacer(Modifier.height(12.dp))
+            Field(code, { code = it.filter(Char::isDigit).take(6); err = null }, "123 456", KeyboardType.NumberPassword)
+            err?.let { Text(it, color = C.error, fontSize = 14.sp, modifier = Modifier.padding(top = 8.dp)) }
+            PButton("Connect", {
+                busy = true
+                scope.launch {
+                    try {
+                        val t = withContext(Dispatchers.IO) { TvApi(tv.host).pair(code, PhoneStore.phoneName(ctx)) }
+                        paired(t, tv.title, null)
+                    } catch (e: Exception) {
+                        err = e.message ?: "Couldn't connect"
+                    }
+                    busy = false
+                }
+            }, busy = busy, enabled = code.length == 6, modifier = Modifier.padding(top = 10.dp))
+        }
+        if (tv.adb && tv.service == false) {
+            Note(Icons.Rounded.Warning, "TV Lock isn't allowed to run on this TV right now.", C.warn)
+            PButton("Fix it automatically", auto, icon = Icons.Rounded.AutoAwesome)
+        }
+    } else Page(step = "Step 2", title = tv.title, sub = tv.ip, onBack = back) {
         if (tv.adb) {
             PCard(highlight = true) {
                 Tag("Recommended", C.caramel)
@@ -385,7 +451,7 @@ private fun TvScreen(tv: FoundTv, back: () -> Unit, auto: () -> Unit, paired: (S
                     scope.launch {
                         try {
                             val t = withContext(Dispatchers.IO) { TvApi(tv.host).pair(code, PhoneStore.phoneName(ctx)) }
-                            paired(t, tv.title)
+                            paired(t, tv.title, null)
                         } catch (e: Exception) {
                             err = e.message ?: "Couldn't connect"
                         }
@@ -603,7 +669,7 @@ private fun AppsScreen(api: TvApi, back: () -> Unit, next: () -> Unit) {
 }
 
 @Composable
-private fun PinScreen(api: TvApi, back: () -> Unit, done: () -> Unit) {
+private fun PinScreen(api: TvApi, back: () -> Unit, setupTv: Boolean, done: () -> Unit) {
     val scope = rememberCoroutineScope()
     val kinds = listOf(Triple("PIN", 4, "4 digits"), Triple("PIN", 6, "6 digits"), Triple("PIN_ANY", 0, "Any length"), Triple("PASSWORD", 0, "Password"))
     var kind by remember { mutableIntStateOf(0) }
@@ -621,10 +687,10 @@ private fun PinScreen(api: TvApi, back: () -> Unit, done: () -> Unit) {
     val (k, len, _) = kinds[kind]
     val pw = k == "PASSWORD"
     Page(
-        step = "Finish setup", title = "Create your profile",
+        step = if (setupTv) "Finish setup" else "Your profile", title = "Create your profile",
         sub = "Each person gets their own PIN, and the TV says hello to whoever unlocks it. You can add more people later.", onBack = back,
         bottom = {
-            PButton("Save and lock the TV", {
+            PButton(if (setupTv) "Save and lock the TV" else "Save my profile", {
                 err = when {
                     name.isBlank() -> "Add your name."
                     a != b -> "Those don't match."
@@ -640,7 +706,8 @@ private fun PinScreen(api: TvApi, back: () -> Unit, done: () -> Unit) {
                             val pr = api.post("/api/profiles/add", JSONObject().put("name", name.trim()).put("pin", a).put("kind", k))
                                 .getJSONObject("profile")
                             photo?.let { api.upload("/api/profiles/photo?id=" + Uri.encode(pr.getString("id")), it) }
-                            api.post("/api/setup/finish")
+                            api.post("/api/me/link", JSONObject().put("profile", pr.getString("id")))
+                            if (setupTv) api.post("/api/setup/finish")
                         }
                         done()
                     } catch (e: Exception) {
@@ -715,6 +782,14 @@ private fun RemoteScreen(store: PhoneStore, forget: () -> Unit, find: () -> Unit
         androidx.activity.result.contract.ActivityResultContracts.GetContent(),
     ) { uri -> pending?.onReceiveValue(uri?.let { arrayOf(it) }); pending = null }
     val version = remember { runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull() ?: "" }
+    // Removed from the TV? Start over instead of showing a remote that can't connect.
+    LaunchedEffect(store.host, store.token) {
+        val revoked = withContext(Dispatchers.IO) {
+            runCatching { TvApi(store.host!!, store.token).get("/api/state"); false }
+                .getOrElse { it is ApiError && it.message == "not paired" }
+        }
+        if (revoked) forget()
+    }
     Backdrop {
         Box(Modifier.fillMaxSize().systemBarsPadding()) {
             key(reload) {
@@ -780,4 +855,122 @@ private fun squareJpeg(ctx: android.content.Context, uri: Uri): ByteArray {
     val sq = android.graphics.Bitmap.createBitmap(src, (src.width - side) / 2, (src.height - side) / 2, side, side)
     val out = android.graphics.Bitmap.createScaledBitmap(sq, 512, 512, true)
     return java.io.ByteArrayOutputStream().also { out.compress(android.graphics.Bitmap.CompressFormat.JPEG, 88, it) }.toByteArray()
+}
+
+@Composable
+private fun WhoScreen(api: TvApi, me: (String) -> Unit, create: () -> Unit, skip: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    var pin by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    var err by remember { mutableStateOf<String?>(null) }
+    Page(
+        step = "Almost done", title = "Who's using this phone?",
+        sub = "So the TV greets you by name when you unlock it from here.",
+        bottom = { PButton("Skip for now", skip) },
+    ) {
+        PCard(highlight = true) {
+            Text("I have a PIN", color = C.text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text("Enter the PIN you use on the TV.", color = C.dim, fontSize = 15.sp)
+            Spacer(Modifier.height(12.dp))
+            Field(pin, { pin = it.take(32); err = null }, "Your PIN", KeyboardType.NumberPassword, secret = true)
+            err?.let { Text(it, color = C.error, fontSize = 14.sp, modifier = Modifier.padding(top = 8.dp)) }
+            PButton("That's me", {
+                busy = true
+                scope.launch {
+                    try {
+                        val j = withContext(Dispatchers.IO) { api.post("/api/me/link-pin", JSONObject().put("pin", pin)) }
+                        me(j.getJSONObject("profile").getString("id"))
+                    } catch (e: Exception) {
+                        err = e.message ?: "Couldn't reach the TV"
+                    }
+                    busy = false
+                }
+            }, primary = true, busy = busy, enabled = pin.length >= 4, modifier = Modifier.padding(top = 10.dp))
+        }
+        PCard(onClick = create) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Badge(Icons.Rounded.PersonAdd, 50.dp)
+                Spacer(Modifier.width(16.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("I'm new here", color = C.text, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+                    Text("Make your own profile: your name, photo and PIN.", color = C.dim, fontSize = 14.sp)
+                }
+                Icon(Icons.AutoMirrored.Rounded.ArrowForward, null, tint = C.dim)
+            }
+        }
+    }
+}
+
+/** "How do you want to appear?": name and photo for this phone's person. */
+@Composable
+private fun MeScreen(api: TvApi, profileId: String, done: () -> Unit) {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var profile by remember { mutableStateOf<JSONObject?>(null) }
+    var name by remember { mutableStateOf("") }
+    var current by remember { mutableStateOf<ImageBitmap?>(null) }
+    var photo by remember { mutableStateOf<ByteArray?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    var err by remember { mutableStateOf<String?>(null) }
+    val pick = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.GetContent(),
+    ) { uri -> uri?.let { u -> photo = runCatching { squareJpeg(ctx, u) }.getOrNull() } }
+    val preview = remember(photo) { photo?.let { BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() } } ?: current
+    LaunchedEffect(profileId) {
+        withContext(Dispatchers.IO) {
+            val st = runCatching { api.get("/api/state") }.getOrNull() ?: return@withContext
+            val a = st.getJSONArray("profiles")
+            val p = (0 until a.length()).map { a.getJSONObject(it) }.firstOrNull { it.getString("id") == profileId } ?: return@withContext
+            profile = p
+            name = p.getString("name")
+            if (p.optLong("photo") > 0) {
+                api.bytes("/api/profiles/photo?id=" + Uri.encode(profileId))?.let { b ->
+                    current = BitmapFactory.decodeByteArray(b, 0, b.size)?.asImageBitmap()
+                }
+            }
+        }
+    }
+    val color = profile?.optInt("color") ?: 0
+    Page(
+        step = "Your profile", title = if (profile != null) "Hi, ${profile!!.getString("name")}!" else "Hi!",
+        sub = "How do you want to appear on the TV? This is what it shows when you unlock it.",
+        bottom = {
+            PButton("Save", {
+                busy = true
+                scope.launch {
+                    try {
+                        withContext(Dispatchers.IO) {
+                            if (name.isNotBlank() && name.trim() != profile?.optString("name")) {
+                                api.post("/api/profiles/update", JSONObject().put("id", profileId).put("name", name.trim()))
+                            }
+                            photo?.let { api.upload("/api/profiles/photo?id=" + Uri.encode(profileId), it) }
+                        }
+                        done()
+                    } catch (e: Exception) {
+                        err = e.message ?: "Couldn't reach the TV"
+                    }
+                    busy = false
+                }
+            }, icon = Icons.Rounded.Check, primary = true, busy = busy)
+        },
+    ) {
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Box(
+                Modifier.size(132.dp).clip(CircleShape).background(dev.alexaero.tvlock.ui.avatarBrush(color)).clickable { pick.launch("image/*") },
+                contentAlignment = Alignment.Center,
+            ) {
+                if (preview != null) Image(preview, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                else Text(name.trim().firstOrNull()?.uppercase() ?: "?", color = C.focusText, fontSize = 54.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+        Text(
+            if (preview == null) "Tap the circle to add a photo" else "Tap the circle to change the photo",
+            color = C.dim, fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+        )
+        Spacer(Modifier.height(18.dp))
+        Text("Name", color = C.text, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(8.dp))
+        Field(name, { name = it.take(24); err = null }, "Your name", KeyboardType.Text)
+        err?.let { Text(it, color = C.error, fontSize = 14.sp, modifier = Modifier.padding(top = 10.dp)) }
+    }
 }

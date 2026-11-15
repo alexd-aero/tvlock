@@ -10,6 +10,7 @@ import dev.alexaero.tvlock.ui.TvLockTheme
 class MainActivity : ComponentActivity() {
     /** PIN entered for this visit to the settings. */
     private val authed = mutableStateOf(false)
+    private var tvUi = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -24,6 +25,7 @@ class MainActivity : ComponentActivity() {
             setContent { TvLockTheme { dev.alexaero.tvlock.phone.PhoneApp(intent.data) } }
             return
         }
+        tvUi = true
         val phoneSetup = intent.getBooleanExtra("phoneSetup", false)
         setContent { TvLockTheme { TvLockApp(authed, ::finish, phoneSetup) } }
     }
@@ -33,6 +35,16 @@ class MainActivity : ComponentActivity() {
         setIntent(intent)
         if (!Platform.isTv(this)) dev.alexaero.tvlock.phone.PhoneLinks.incoming.value = intent.data
         else if (intent.getBooleanExtra("phoneSetup", false)) recreate()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (tvUi) LockState.settingsOpen.value = true
+    }
+
+    override fun onPause() {
+        super.onPause()
+        if (tvUi) LockState.settingsOpen.value = false
     }
 
     override fun onStop() {

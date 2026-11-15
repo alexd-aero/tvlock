@@ -38,6 +38,7 @@ class LockService : AccessibilityService() {
 
     private val screen = object : BroadcastReceiver() {
         override fun onReceive(c: Context, i: Intent) {
+            Live.bump()
             when (i.action) {
                 Intent.ACTION_SCREEN_ON -> {
                     LockState.lastActivity = SystemClock.elapsedRealtime()
@@ -186,7 +187,7 @@ class LockService : AccessibilityService() {
     }
 
     private fun onForeground(pkg: String) {
-        LockState.foreground = pkg
+        if (LockState.foreground != pkg) { LockState.foreground = pkg; Live.bump() }
         val isHome = pkg in homes
         if (isHome && prefs.relockOnHome) LockState.unlocked.clear()
 

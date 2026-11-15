@@ -82,6 +82,14 @@ fun TvLockApp(authed: MutableState<Boolean>, finish: () -> Unit, phoneSetup: Boo
     val who = remember(editing, newName) { Profiles.get(prefs, editing)?.name ?: newName }
 
     if (!setup && prefs.setupDone && !authed.value) {
+        // Phones see this PIN screen as locked, and can open it with Unlock.
+        DisposableEffect(Unit) {
+            LockState.gate.value = true
+            onDispose { LockState.gate.value = false }
+        }
+        val start = remember { LockState.gateUnlocks.value }
+        val unlocks by LockState.gateUnlocks.collectAsState()
+        LaunchedEffect(unlocks) { if (unlocks != start) authed.value = true }
         LockScreen(
             title = "TV Lock settings",
             subtitle = "Enter your ${nounFor(Profiles.padFor(prefs).first)} to change the lock",

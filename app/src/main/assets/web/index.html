@@ -358,7 +358,7 @@ $('#pair-go').onclick = async () => {
     if (!r.ok) throw new Error(j.error || 'Could not add this phone');
     token = j.token; localStorage.setItem(KEY, token);
     history.replaceState(null, '', '/');
-    show(); poll(); toast('Phone added. You can control the TV now.');
+    show(); poll(); live(); toast('Phone added. You can control the TV now.');
   } catch (e) { $('#pair-err').textContent = e.message; }
   $('#pair-go').disabled = false;
 };
@@ -372,8 +372,39 @@ async function poll() {
     render();
   } catch (e) { $('#conn').classList.add('off'); }
 }
-setInterval(() => { if (document.visibilityState === 'visible') poll(); }, 2000);
-document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && poll());
+// Live updates: the TV pushes its state the moment anything changes (no waiting for the next check).
+let liveCtl = null;
+async function live() {
+  if (!token || liveCtl || document.visibilityState !== 'visible') return;
+  const ctl = new AbortController(); liveCtl = ctl;
+  try {
+    const r = await fetch('/api/events', { headers: { Authorization: 'Bearer ' + token }, signal: ctl.signal, cache: 'no-store' });
+    if (r.status === 401) { localStorage.removeItem(KEY); token = null; show(); return; }
+    if (!r.ok || !r.body) throw new Error('no stream');
+    $('#conn').classList.remove('off');
+    const rd = r.body.getReader(), dec = new TextDecoder();
+    let buf = '';
+    for (;;) {
+      const { value, done } = await rd.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let i;
+      while ((i = buf.indexOf('\n\n')) >= 0) {
+        const ev = buf.slice(0, i); buf = buf.slice(i + 2);
+        const data = ev.split('\n').filter(l => l.startsWith('data: ')).map(l => l.slice(6)).join('\n');
+        if (data) { state = JSON.parse(data); render(); }
+      }
+    }
+  } catch (e) {} finally {
+    if (liveCtl === ctl) liveCtl = null;
+  }
+  if (token) { $('#conn').classList.add('off'); setTimeout(live, 1000); }
+}
+setInterval(() => { if (document.visibilityState === 'visible') poll(); }, 10000);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') { poll(); live(); }
+  else if (liveCtl) { liveCtl.abort(); liveCtl = null; }
+});
 
 function render() {
   const tv = state.tv, s = state.settings;
@@ -381,11 +412,15 @@ function render() {
   const locked = !!tv.lock;
   $('#hero').classList.toggle('locked', locked);
   $('#hero-badge').innerHTML = locked ? ICON.lock : ICON.open;
-  $('#hero-state').textContent = !tv.awake ? 'TV is asleep' : locked ? (tv.lock === 'app' ? tv.lockApp + ' is locked' : 'TV is locked') : 'TV is unlocked';
+  $('#hero-state').textContent = !tv.awake ? 'TV is asleep'
+    : tv.lock === 'app' ? tv.lockApp + ' is locked'
+    : tv.lock === 'settings' ? 'TV Lock settings are locked'
+    : locked ? 'TV is locked' : 'TV is unlocked';
   $('#hero-sub').textContent = !tv.service ? 'TV Lock is not running on the TV (Accessibility is off).'
+    : tv.lock === 'settings' ? 'The settings PIN screen is open on the TV.'
     : locked ? 'The PIN screen is showing on the TV.' : (tv.foreground ? 'Watching: ' + tv.foreground : 'Ready');
   const hb = $('#hero-btn');
-  hb.innerHTML = locked ? ICON.open + 'Unlock TV' : ICON.lock + 'Lock TV now';
+  hb.innerHTML = locked ? ICON.open + (tv.lock === 'settings' ? 'Open settings' : 'Unlock TV') : ICON.lock + 'Lock TV now';
   hb.onclick = async () => { buzz(); hb.disabled = true;
     try { await api(locked ? '/api/unlock' : '/api/lock', {}); toast(locked ? 'Unlocked' : 'Locked'); await poll(); } finally { hb.disabled = false; } };
   const parts = [];
@@ -402,7 +437,7 @@ function render() {
 
 function renderDevices() {
   const box = $('#devs');
-  const sig = JSON.stringify(state.devices);
+  const sig = JSON.stringify([state.devices, state.profiles.map(p => p.id + p.name)]);
   if (box.dataset.sig === sig) return;
   box.dataset.sig = sig; box.innerHTML = '';
   state.devices.forEach(d => {
@@ -410,6 +445,17 @@ function renderDevices() {
     el.innerHTML = `<span class="badge sm">${ICON.phone}</span><div class="t"><b></b><span></span></div>`;
     el.querySelector('b').textContent = d.name + (d.me ? ' (this phone)' : '');
     el.querySelector('span:last-child').textContent = 'Added ' + new Date(d.added).toLocaleDateString();
+    if (d.me) {
+      // Who uses this phone: unlocking from here greets them on the TV.
+      const sel = document.createElement('select');
+      sel.style.cssText = 'height:40px;margin-top:8px;width:auto;font-size:14px';
+      sel.innerHTML = '<option value="">Who uses this phone?</option>' + state.profiles.map(p =>
+        `<option value="${p.id}" ${p.id === d.profile ? 'selected' : ''}></option>`).join('');
+      state.profiles.forEach((p, i) => { sel.options[i + 1].textContent = p.name; });
+      sel.onchange = async () => { if (!sel.value) return; await api('/api/me/link', { profile: sel.value });
+        toast('The TV will greet ' + sel.options[sel.selectedIndex].textContent + ' when you unlock from here'); };
+      el.querySelector('.t').appendChild(sel);
+    }
     const b = document.createElement('button'); b.className = 'btn' + (d.me ? '' : ' danger');
     b.textContent = d.me ? 'Rename' : 'Remove';
     b.onclick = async () => {
@@ -585,7 +631,7 @@ async function loadApps() {
 
 window.addEventListener('hashchange', show);
 show();
-if (token) poll();
+if (token) { poll(); live(); }
 </script>
 </body>
 </html>

@@ -58,8 +58,14 @@ adb shell pm grant dev.alexaero.tvlock android.permission.DUMP
 ## Build
 
 ```sh
-./build.sh            # app/build/outputs/apk/release/app-release.apk
-./release.sh          # build + GitHub release for the version in app/build.gradle.kts
+./build.sh                   # fast dev APK for testing (no R8, same key): app/build/outputs/apk/dev/app-dev.apk
+./build.sh assembleRelease   # the small shrunk APK: app/build/outputs/apk/release/app-release.apk
+./release.sh "notes"         # release build + GitHub release for the version in app/build.gradle.kts
+```
+
+The Gradle daemon stays warm for 3 hours, so after the first build a small change rebuilds in seconds.
+
+```sh
 ```
 
 Release builds are signed with the key in `keystore.properties` (not in the repo). Updates must be signed with the

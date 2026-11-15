@@ -22,6 +22,8 @@ data class FoundTv(
     val adb: Boolean,
     val setupDone: Boolean? = null,
     val version: String? = null,
+    /** TV Lock's lock service is running on the TV. */
+    val service: Boolean? = null,
 ) {
     val host get() = "$ip:8642"
     val title get() = name ?: "Android TV"
@@ -100,7 +102,7 @@ class Scanner(private val ctx: Context) {
         if (!adb && hello == null) return null
         return FoundTv(
             ip, hello?.optString("name"), hello != null, adb,
-            hello?.optBoolean("setupDone"), hello?.optString("version"),
+            hello?.optBoolean("setupDone"), hello?.optString("version"), hello?.optBoolean("service"),
         )
     }
 

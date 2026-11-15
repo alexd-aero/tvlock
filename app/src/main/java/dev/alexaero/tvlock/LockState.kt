@@ -26,6 +26,12 @@ object LockState {
 
     /** Who just unlocked: the lock shows "Hello, Name" before it fades away. */
     val greeting = MutableStateFlow<Profile?>(null)
+    /** The TV Lock settings PIN screen is showing on the TV. */
+    val gate = MutableStateFlow(false)
+    /** TV Lock's own settings app is open on the TV. */
+    val settingsOpen = MutableStateFlow(false)
+    /** A paired phone pressed Unlock while the settings PIN screen was showing. */
+    val gateUnlocks = MutableStateFlow(0)
 
     /** Apps unlocked since the last home screen / sleep. */
     val unlocked = mutableSetOf<String>()
