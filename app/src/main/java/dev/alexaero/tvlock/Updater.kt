@@ -59,7 +59,11 @@ object Updater {
         state.value = State.Checking
         state.value = try {
             val rel = latest()
-            if (rel != null && isNewer(rel.version, current(ctx))) State.Available(rel) else State.UpToDate
+            when {
+                rel == null -> State.Failed("No releases found on github.com/$REPO yet")
+                isNewer(rel.version, current(ctx)) -> State.Available(rel)
+                else -> State.UpToDate
+            }
         } catch (e: Exception) {
             State.Failed("Couldn't reach GitHub (${e.message ?: e.javaClass.simpleName})")
         }
