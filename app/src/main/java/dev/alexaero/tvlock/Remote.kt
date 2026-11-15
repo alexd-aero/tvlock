@@ -212,7 +212,7 @@ private class Server(private val ctx: Context) : NanoHTTPD(Remote.PORT) {
                 val apk = java.io.File(ctx.applicationInfo.sourceDir)
                 val html = String(ctx.assets.open("web/get.html").use { it.readBytes() })
                     .replace("{{TV}}", Remote.tvName())
-                    .replace("{{SIZE}}", "about 6 MB")
+                    .replace("{{SIZE}}", "about 1 MB")
                     .replace("{{VERSION}}", Updater.current(ctx))
                 return newFixedLengthResponse(Response.Status.OK, "text/html; charset=utf-8", html)
             }
