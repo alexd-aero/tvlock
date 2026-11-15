@@ -155,9 +155,11 @@ fun Badge(icon: ImageVector, size: Dp = 56.dp, brush: Brush = C.accent) {
 @Composable
 fun InitialFocus(fr: FocusRequester, key: Any? = Unit) {
     LaunchedEffect(key) {
-        repeat(20) {
-            delay(if (it == 0) 30 else 100)
-            if (runCatching { fr.requestFocus() }.isSuccess) return@LaunchedEffect
+        // Ask a few times: after Back, the old screen's focus clears a moment after this one appears.
+        var done = 0
+        repeat(30) {
+            delay(if (it == 0) 30 else 90)
+            if (runCatching { fr.requestFocus() }.isSuccess && ++done >= 4) return@LaunchedEffect
         }
     }
 }

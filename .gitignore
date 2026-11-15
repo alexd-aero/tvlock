@@ -4,3 +4,4 @@ app/build/
 keystore.properties
 local.properties
 *.apk
+.kotlin/

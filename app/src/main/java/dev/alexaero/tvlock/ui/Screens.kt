@@ -47,7 +47,16 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private enum class Screen { WELCOME, PERMISSIONS, MODE, APPS, KIND, CREATE, CONFIRM, TEST, HOME, OPTIONS }
+private val PAGE_H = 56.dp
+private val PAGE_V = 36.dp
+
+/**
+ * Page margins go *inside* scroll containers: those clip to their bounds, and the focus glow and
+ * zoom of the cards near the edges need the margin to draw into.
+ */
+private fun Modifier.page() = padding(horizontal = PAGE_H, vertical = PAGE_V)
+
+private enum class Screen { WELCOME, PERMISSIONS, MODE, APPS, KIND, CREATE, CONFIRM, TEST, HOME, OPTIONS, UPDATES }
 
 @Composable
 fun TvLockApp(authed: MutableState<Boolean>, finish: () -> Unit) {
@@ -76,7 +85,7 @@ fun TvLockApp(authed: MutableState<Boolean>, finish: () -> Unit) {
     BackHandler { back() }
 
     Backdrop {
-        Box(Modifier.fillMaxSize().padding(horizontal = 56.dp, vertical = 36.dp)) {
+        Box(Modifier.fillMaxSize()) {
             when (stack.last()) {
                 Screen.WELCOME -> Welcome { go(Screen.PERMISSIONS) }
                 Screen.PERMISSIONS -> Permissions(setup) { if (setup) go(Screen.MODE) else back() }
@@ -133,6 +142,7 @@ fun TvLockApp(authed: MutableState<Boolean>, finish: () -> Unit) {
                 Screen.TEST -> TestScreen(prefs, setup) { setup = false; home() }
                 Screen.HOME -> Home(prefs) { go(it) }
                 Screen.OPTIONS -> Options(prefs)
+                Screen.UPDATES -> Updates()
             }
         }
     }
@@ -144,7 +154,7 @@ fun TvLockApp(authed: MutableState<Boolean>, finish: () -> Unit) {
 private fun Welcome(next: () -> Unit) {
     val fr = remember { FocusRequester() }
     InitialFocus(fr)
-    Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxSize().page(), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Badge(Icons.Rounded.Lock, 76.dp)
             Spacer(Modifier.height(24.dp))
@@ -199,7 +209,7 @@ private fun Permissions(setup: Boolean, next: () -> Unit) {
     val cont = remember { FocusRequester() }
     InitialFocus(if (a11y && overlay) cont else first, a11y to overlay)
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).page()) {
         Row(verticalAlignment = Alignment.Bottom) {
             Box(Modifier.weight(1f)) {
                 ScreenTitle(
@@ -304,7 +314,7 @@ private fun Mode(prefs: Prefs, setup: Boolean, next: () -> Unit) {
         prefs.appLock -> 1
         else -> 0
     }
-    Column(Modifier.fillMaxSize()) {
+    Column(Modifier.fillMaxSize().page()) {
         ScreenTitle("What should TV Lock lock?", "You can change this later.", if (setup) "Step 2 of 5" else null)
         Spacer(Modifier.height(32.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
@@ -355,8 +365,8 @@ private fun AppPicker(prefs: Prefs, setup: Boolean, next: () -> Unit) {
     val fr = remember { FocusRequester() }
     InitialFocus(fr, apps != null)
 
-    Column(Modifier.fillMaxSize()) {
-        Row(verticalAlignment = Alignment.Bottom) {
+    Column(Modifier.fillMaxSize().padding(top = PAGE_V)) {
+        Row(Modifier.padding(horizontal = PAGE_H), verticalAlignment = Alignment.Bottom) {
             Box(Modifier.weight(1f)) {
                 ScreenTitle(
                     "Choose apps to lock",
@@ -373,14 +383,14 @@ private fun AppPicker(prefs: Prefs, setup: Boolean, next: () -> Unit) {
         Spacer(Modifier.height(20.dp))
         val list = apps
         if (list == null) {
-            Text("Finding apps…", color = C.dim)
+            Text("Finding apps…", color = C.dim, modifier = Modifier.padding(horizontal = PAGE_H))
             return@Column
         }
         LazyVerticalGrid(
             GridCells.Fixed(5),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
-            contentPadding = PaddingValues(8.dp),
+            contentPadding = PaddingValues(start = PAGE_H, end = PAGE_H, top = 12.dp, bottom = PAGE_V),
         ) {
             itemsIndexed(list, key = { _, it -> it.first.pkg }) { i, (app, art) ->
                 val on = app.pkg in chosen
@@ -426,7 +436,7 @@ private fun AppPicker(prefs: Prefs, setup: Boolean, next: () -> Unit) {
 private fun Kind(setup: Boolean, pick: (SecretKind, Int) -> Unit) {
     val fr = remember { FocusRequester() }
     InitialFocus(fr)
-    Column(Modifier.fillMaxSize()) {
+    Column(Modifier.fillMaxSize().page()) {
         ScreenTitle("Choose your lock", "A 4-digit PIN is the default and the quickest with a remote.", if (setup) "Step 4 of 5" else null)
         Spacer(Modifier.height(26.dp))
         val opts = listOf(
@@ -485,7 +495,7 @@ private fun PadScreen(
             }
         }
         Row(
-            Modifier.fillMaxSize().onPreviewKeyEvent { e ->
+            Modifier.fillMaxSize().page().onPreviewKeyEvent { e ->
                 val k = e.nativeKeyEvent.keyCode
                 if (k == AKey.KEYCODE_BACK) return@onPreviewKeyEvent false
                 typeKey(e, kind, entry, ::submit)
@@ -522,7 +532,7 @@ private fun TestScreen(prefs: Prefs, setup: Boolean, done: () -> Unit) {
     val noun = nounFor(prefs.secretKind)
     val firstApp = prefs.lockedApps.firstOrNull()
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).page()) {
         Row(verticalAlignment = Alignment.Bottom) {
             Box(Modifier.weight(1f)) {
                 ScreenTitle(
@@ -624,6 +634,8 @@ private fun Home(prefs: Prefs, open: (Screen) -> Unit) {
         }
         if (!enabled) "Off: nothing is locked" else "Locks " + parts.joinToString(" and ")
     }
+    val update by Updater.state.collectAsState()
+    LaunchedEffect(Unit) { if (Updater.state.value == Updater.State.Idle) Updater.check(ctx) }
     val noun = nounFor(prefs.secretKind)
     val kindText = when (prefs.secretKind) {
         SecretKind.PIN -> "${prefs.pinLength}-digit PIN"
@@ -631,7 +643,7 @@ private fun Home(prefs: Prefs, open: (Screen) -> Unit) {
         SecretKind.PASSWORD -> "Password"
     }
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).page()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Badge(Icons.Rounded.Lock, 64.dp)
             Spacer(Modifier.width(20.dp))
@@ -666,8 +678,14 @@ private fun Home(prefs: Prefs, open: (Screen) -> Unit) {
             if (prefs.appLock) add(Triple(Icons.Rounded.Apps, "Locked apps", "${prefs.lockedApps.size} chosen") to Screen.APPS)
             add(Triple(Icons.Rounded.Pin, "Change $noun", kindText) to Screen.KIND)
             add(Triple(Icons.Rounded.Science, "Test the lock", "Try it safely") to Screen.TEST)
-            add(Triple(Icons.Rounded.Settings, "Options", "Sleep, relock") to Screen.OPTIONS)
+            add(Triple(Icons.Rounded.Settings, "Options", "Sleep, inputs, relock") to Screen.OPTIONS)
             add(Triple(Icons.Rounded.Accessibility, "Permissions", if (a11y) "All good" else "Needs attention") to Screen.PERMISSIONS)
+            add(Triple(Icons.Rounded.SystemUpdate, "Updates", when (val u = update) {
+                is Updater.State.Available -> "Version ${u.release.version} is ready"
+                is Updater.State.Downloading, is Updater.State.Installing -> "Updating…"
+                Updater.State.UpToDate -> "Up to date · ${Updater.current(ctx)}"
+                else -> "Version ${Updater.current(ctx)}"
+            }) to Screen.UPDATES)
         }
         cards.chunked(3).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
@@ -698,27 +716,149 @@ private fun Options(prefs: Prefs) {
     val ctx = LocalContext.current
     var wake by remember { mutableStateOf(prefs.lockOnWake) }
     var home by remember { mutableStateOf(prefs.relockOnHome) }
+    var idle by remember { mutableIntStateOf(prefs.idleMinutes) }
     val fr = remember { FocusRequester() }
     InitialFocus(fr)
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Gap) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).page(), verticalArrangement = Gap) {
         ScreenTitle("Options")
         Spacer(Modifier.height(10.dp))
         TvToggle(
-            "Lock when the TV wakes up",
-            "Most TVs sleep instead of turning off, so this makes the start lock show every time you turn it on.",
+            "Lock when the TV sleeps or switches inputs",
+            "The PIN comes up when you turn the TV back on or switch back to this box's HDMI.",
             wake, { wake = it; prefs.lockOnWake = it }, Modifier.fillMaxWidth(), fr,
         )
+        val idleSteps = listOf(0, 5, 10, 20, 30, 60)
+        TvSurface(
+            { idle = idleSteps[(idleSteps.indexOf(idle).coerceAtLeast(0) + 1) % idleSteps.size]; prefs.idleMinutes = idle },
+            Modifier.fillMaxWidth(), scale = 1.03f,
+        ) { focused ->
+            Row(Modifier.padding(horizontal = 22.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Lock when nobody uses the remote", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        "Catches switching to the TV's own apps on TVs that don't tell the box. Never while a video is playing.",
+                        style = MaterialTheme.typography.bodyMedium, color = if (focused) C.focusText.copy(alpha = .7f) else C.dim,
+                    )
+                }
+                Spacer(Modifier.width(16.dp))
+                Text(
+                    if (idle == 0) "Never" else "After $idle min",
+                    style = MaterialTheme.typography.titleMedium, color = if (focused) C.focusText else C.latte,
+                )
+            }
+        }
         TvToggle(
             "Relock apps when you go home",
             if (home) "A locked app asks again every time you open it from the home screen."
             else "Once unlocked, apps stay open until the TV sleeps.",
             home, { home = it; prefs.relockOnHome = it }, Modifier.fillMaxWidth(),
         )
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "Switching inputs works best with HDMI-CEC: the box sleeps when the TV switches away, so it's locked " +
+                "when you come back. If your box stays awake, run this once from a computer:",
+            style = MaterialTheme.typography.bodyMedium, color = C.dim,
+        )
+        Code("adb shell cmd hdmi_control cec_setting set power_state_change_on_active_source_lost standby_now")
+        Spacer(Modifier.height(6.dp))
         Text(
             "TV Lock ${runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull() ?: ""}",
             style = MaterialTheme.typography.bodyMedium, color = C.dim,
         )
+    }
+}
+
+
+// ---------------------------------------------------------------- updates
+
+@Composable
+private fun Updates() {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val st by Updater.state.collectAsState()
+    var tick by remember { mutableIntStateOf(0) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { tick++ }
+    val canInstall = remember(tick) { Updater.canInstall(ctx) }
+    var noPermPage by remember { mutableStateOf(false) }
+    val fr = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        val s0 = Updater.state.value
+        if (s0 == Updater.State.Idle || s0 == Updater.State.UpToDate || s0 is Updater.State.Failed) Updater.check(ctx)
+    }
+    InitialFocus(fr, st::class to canInstall)
+
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).page()) {
+        ScreenTitle("Updates", "TV Lock ${Updater.current(ctx)} is on this TV. New versions come from GitHub.")
+        Spacer(Modifier.height(28.dp))
+        val (icon, title, desc) = when (val u = st) {
+            Updater.State.Idle, Updater.State.Checking ->
+                Triple(Icons.Rounded.Sync, "Checking for updates…", "This takes a moment.")
+            Updater.State.UpToDate ->
+                Triple(Icons.Rounded.CheckCircle, "You're up to date", "There's no newer version of TV Lock.")
+            is Updater.State.Available -> Triple(
+                Icons.Rounded.SystemUpdate, "Version ${u.release.version} is ready",
+                if (canInstall) "Your PIN and settings stay the same after the update."
+                else "First let TV Lock install updates: turn on TV Lock in the page that opens, then come back.",
+            )
+            is Updater.State.Downloading -> Triple(
+                Icons.Rounded.Download, "Downloading ${u.release.version}…", "${(u.progress * 100).toInt()}%",
+            )
+            is Updater.State.Installing -> Triple(
+                Icons.Rounded.InstallDesktop, "Installing ${u.release.version}…",
+                "Pick Update / Install if the TV asks. TV Lock restarts by itself; your PIN and settings stay.",
+            )
+            is Updater.State.Failed -> Triple(Icons.Rounded.ErrorOutline, "Something went wrong", u.message)
+        }
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(C.card).padding(24.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Badge(icon, 60.dp)
+            Spacer(Modifier.width(20.dp))
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.headlineSmall)
+                Spacer(Modifier.height(4.dp))
+                Text(desc, style = MaterialTheme.typography.bodyMedium, color = if (st is Updater.State.Failed) C.error else C.dim)
+                if (noPermPage) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "This TV has no shortcut to that page. Open Settings → Apps → Security & restrictions → " +
+                            "Unknown sources and turn on TV Lock.",
+                        style = MaterialTheme.typography.bodyMedium, color = C.warn,
+                    )
+                }
+                val u = st
+                if (u is Updater.State.Downloading) {
+                    Spacer(Modifier.height(12.dp))
+                    Box(Modifier.fillMaxWidth().height(8.dp).clip(CircleShape).background(C.cream.copy(alpha = 0.15f))) {
+                        Box(Modifier.fillMaxWidth(u.progress.coerceIn(0f, 1f)).fillMaxHeight().clip(CircleShape).background(C.accent))
+                    }
+                }
+            }
+            Spacer(Modifier.width(20.dp))
+            when (val u = st) {
+                is Updater.State.Available ->
+                    if (canInstall) TvButton("Update now", { scope.launch { Updater.downloadAndInstall(ctx, u.release) } },
+                        icon = Icons.Rounded.Download, primary = true, focusRequester = fr)
+                    else TvButton("Allow installs", { noPermPage = !Updater.openInstallPermission(ctx) },
+                        icon = Icons.Rounded.Security, primary = true, focusRequester = fr)
+                Updater.State.UpToDate, is Updater.State.Failed ->
+                    TvButton("Check again", { scope.launch { Updater.check(ctx) } }, icon = Icons.Rounded.Refresh, focusRequester = fr)
+                is Updater.State.Installing ->
+                    TvButton("Retry", { scope.launch { Updater.downloadAndInstall(ctx, u.release) } }, icon = Icons.Rounded.Refresh, focusRequester = fr)
+                else -> {}
+            }
+        }
+        val notes = (st as? Updater.State.Available)?.release?.notes.orEmpty()
+        if (notes.isNotBlank()) {
+            Spacer(Modifier.height(22.dp))
+            Text("What's new", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(6.dp))
+            Text(notes, style = MaterialTheme.typography.bodyMedium, color = C.dim)
+        }
+        Spacer(Modifier.height(22.dp))
+        Text("github.com/${Updater.REPO}", style = MaterialTheme.typography.bodyMedium, color = C.dim.copy(alpha = 0.6f))
     }
 }
 

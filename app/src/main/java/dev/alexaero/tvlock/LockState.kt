@@ -30,6 +30,8 @@ object LockState {
     @Volatile var foreground: String? = null
     /** TV Lock opened a Settings page itself: don't lock Settings for a few minutes. */
     @Volatile var graceUntil = 0L
+    /** Last time someone used the remote on this box (elapsedRealtime). */
+    @Volatile var lastActivity = SystemClock.elapsedRealtime()
 
     fun grace(minutes: Int = 3) {
         graceUntil = SystemClock.elapsedRealtime() + minutes * 60_000L

@@ -19,6 +19,8 @@ class Prefs(ctx: Context) {
     var lockOnWake by bool("lockOnWake", true)
     /** Relock unlocked apps whenever the home screen shows (otherwise only when the TV sleeps). */
     var relockOnHome by bool("relockOnHome", true)
+    /** Lock after this many minutes without remote use (0 = never). Skipped while a video plays. */
+    var idleMinutes by int("idleMinutes", 20)
 
     var lockedApps: Set<String>
         get() = sp.getStringSet("lockedApps", emptySet())!!.toSet()

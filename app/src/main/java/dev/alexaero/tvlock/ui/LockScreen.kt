@@ -18,6 +18,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Science
 import androidx.compose.material3.Icon
@@ -88,6 +90,7 @@ fun LockSurface(onLeave: () -> Unit) {
                         subtitle = "Enter your $noun to open it.  Back leaves the app.",
                         icon = icon,
                         onBack = onLeave,
+                        leaveLabel = "Go to home screen",
                         onUnlocked = { LockState.unlock(ctx) },
                     )
                 }
@@ -96,6 +99,7 @@ fun LockSurface(onLeave: () -> Unit) {
                     subtitle = "This is exactly what the lock looks like. Press Back to stop the test.",
                     test = true,
                     onBack = onLeave,
+                    leaveLabel = "Stop test",
                     onUnlocked = { LockState.unlock(ctx) },
                 )
             }
@@ -125,6 +129,7 @@ fun LockScreen(
     onBack: (() -> Unit)?,
     icon: ImageBitmap? = null,
     test: Boolean = false,
+    leaveLabel: String? = null,
 ) {
     val ctx = LocalContext.current
     val prefs = remember { Prefs(ctx) }
@@ -231,6 +236,10 @@ fun LockScreen(
                     style = MaterialTheme.typography.bodyMedium,
                     color = if (msg != null) C.error else C.dim.copy(alpha = 0.7f),
                 )
+                if (leaveLabel != null && onBack != null) {
+                    Spacer(Modifier.height(22.dp))
+                    TvButton(leaveLabel, onBack, icon = if (test) Icons.Rounded.Close else Icons.Rounded.Home)
+                }
             }
             Box(
                 Modifier.fillMaxHeight().width(if (kind == SecretKind.PASSWORD) 470.dp else 300.dp),

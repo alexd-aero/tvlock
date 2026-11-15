@@ -11,7 +11,9 @@ import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import androidx.core.content.ContextCompat
 import dev.alexaero.tvlock.ui.LockSurface
+import android.media.AudioManager
 import android.os.PowerManager
+import android.os.SystemClock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -34,18 +36,47 @@ class LockService : AccessibilityService() {
 
     private val screen = object : BroadcastReceiver() {
         override fun onReceive(c: Context, i: Intent) {
-            if (i.action == Intent.ACTION_SCREEN_ON) {
-                if (overlay.showing) verifyOverlay()
-                return
+            when (i.action) {
+                Intent.ACTION_SCREEN_ON -> {
+                    LockState.lastActivity = SystemClock.elapsedRealtime()
+                    if (overlay.showing) verifyOverlay()
+                }
+                // The TV slept, or (with HDMI-CEC) switched to another input and put the box to sleep.
+                Intent.ACTION_SCREEN_OFF -> lockAway()
+                // HDMI link to the TV dropped: unplugged, or a TV that cuts it when you change inputs.
+                AudioManager.ACTION_HDMI_AUDIO_PLUG -> {
+                    if (!isInitialStickyBroadcast && i.getIntExtra(AudioManager.EXTRA_AUDIO_PLUG_STATE, 1) == 0) lockAway()
+                }
             }
-            if (i.action != Intent.ACTION_SCREEN_OFF) return
-            LockState.unlocked.clear()
-            if (LockState.current.value is Lock.App) LockState.current.value = null
-            if (prefs.setupDone && prefs.enabled && prefs.bootLock && prefs.lockOnWake && prefs.hasSecret) {
-                // Lock now, so the PIN screen is already up when the TV wakes.
-                prefs.relockPending = true
-                LockState.current.value = Lock.Boot
-            }
+        }
+    }
+
+    /** Nobody is watching the box any more: lock it so the PIN is up when they come back. */
+    private fun lockAway() {
+        LockState.unlocked.clear()
+        if (LockState.current.value is Lock.App) LockState.current.value = null
+        if (prefs.setupDone && prefs.enabled && prefs.bootLock && prefs.lockOnWake && prefs.hasSecret &&
+            LockState.current.value == null
+        ) {
+            prefs.relockPending = true
+            LockState.current.value = Lock.Boot
+        }
+    }
+
+    /** Lock after a while without remote use, unless a video or song is playing in an app. */
+    private fun watchIdle() = scope.launch {
+        val power = getSystemService(PowerManager::class.java)
+        val audio = getSystemService(AudioManager::class.java)
+        while (true) {
+            delay(30_000)
+            val mins = prefs.idleMinutes
+            if (mins <= 0 || LockState.current.value != null || !power.isInteractive) continue
+            val idle = SystemClock.elapsedRealtime() - LockState.lastActivity
+            if (idle < mins * 60_000L) continue
+            val fg = LockState.foreground
+            // Home-screen trailers play sound too; only a real app playing counts as watching.
+            if (audio.isMusicActive && fg != null && fg !in homes) continue
+            lockAway()
         }
     }
 
@@ -54,8 +85,13 @@ class LockService : AccessibilityService() {
         overlay = Overlay(this, WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY)
         silencer = Silencer(this)
         homes = homePackages()
-        ContextCompat.registerReceiver(this, screen, IntentFilter(Intent.ACTION_SCREEN_OFF).apply { addAction(Intent.ACTION_SCREEN_ON) }, ContextCompat.RECEIVER_NOT_EXPORTED)
+        ContextCompat.registerReceiver(this, screen, IntentFilter(Intent.ACTION_SCREEN_OFF).apply {
+            addAction(Intent.ACTION_SCREEN_ON)
+            addAction(AudioManager.ACTION_HDMI_AUDIO_PLUG)
+        }, ContextCompat.RECEIVER_NOT_EXPORTED)
         LockState.serviceRunning.value = true
+        LockState.lastActivity = SystemClock.elapsedRealtime()
+        watchIdle()
         if (prefs.bootLockDue()) LockState.current.value = Lock.Boot
         scope.launch {
             LockState.current.collect { lock ->
@@ -112,8 +148,10 @@ class LockService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(e: AccessibilityEvent) {
-        if (e.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
         val pkg = e.packageName?.toString() ?: return
+        // Focus moving, clicks, scrolling: someone is using the remote.
+        LockState.lastActivity = SystemClock.elapsedRealtime()
+        if (e.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
         val cls = e.className?.toString() ?: return
         if (pkg == packageName || !isActivity(pkg, cls)) return
         onForeground(pkg)
