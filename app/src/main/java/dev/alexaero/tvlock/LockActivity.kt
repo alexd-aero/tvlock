@@ -15,6 +15,7 @@ class LockActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         silencer = Silencer(this)
+        Look.load(this)
         setContent { LockSurface(onLeave = ::leave) }
         lifecycleScope.launch {
             combine(LockState.current, LockState.serviceRunning, LockState.overlayBroken, LockState.greeting) { l, s, broken, hello ->

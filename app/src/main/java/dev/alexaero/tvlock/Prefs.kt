@@ -22,6 +22,17 @@ class Prefs(ctx: Context) {
     /** Lock after this many minutes without remote use (0 = never). Skipped while a video plays. */
     var idleMinutes by int("idleMinutes", 20)
 
+    /** TV app look: theme id, custom background ("", image, gif, video) and how much it's dimmed. */
+    var theme by str("theme")
+    var bgType: String
+        get() = sp.getString("bgType", "") ?: ""
+        set(v) = sp.edit().putString("bgType", v).apply()
+    var bgVersion by long("bgVersion", 0L)
+    var bgDim by int("bgDim", 55)
+
+    /** TV Lock may press keys on this TV through its own network debugging (volume, typing, waking the TV). */
+    var selfAdbOk by bool("selfAdbOk", false)
+
     /** Paired phones may reach TV Lock's web remote on the home network. */
     var phoneAccess by bool("phoneAccess", false)
     /** JSON array of paired phones (see [Devices]). */

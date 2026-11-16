@@ -14,6 +14,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Look.load(this)
         if (!BuildConfig.TV) {
             // The phone APK: always the companion (remote + TV setup).
             dev.alexaero.tvlock.phone.PhoneNet.preferWifi(this)

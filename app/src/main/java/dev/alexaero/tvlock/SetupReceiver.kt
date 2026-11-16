@@ -14,9 +14,13 @@ class SetupReceiver : BroadcastReceiver() {
         val token = intent.getStringExtra("token") ?: return
         if (token.length < 32) return
         val p = Prefs(ctx)
-        Remote.addDevice(p, token, intent.getStringExtra("name") ?: "Phone")
+        if (Devices.find(p, token) == null) Remote.addDevice(p, token, intent.getStringExtra("name") ?: "Phone")
         p.phoneAccess = true
         Remote.start(ctx)
         resultCode = 1
+        // Automatic setup from a phone: let TV Lock press real keys (the TV asks "Allow debugging?" once more).
+        if (intent.getBooleanExtra("enableKeys", false) && !p.selfAdbOk) {
+            Thread { SelfAdb.enable(ctx.applicationContext) }.start()
+        }
     }
 }

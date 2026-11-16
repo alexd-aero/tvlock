@@ -285,6 +285,7 @@ private class Server(private val ctx: Context) : NanoHTTPD(Remote.PORT) {
                 JSONObject().put("app", "tvlock").put("name", Remote.tvName()).put("version", Updater.current(ctx))
                     .put("setupDone", prefs.setupDone).put("pairing", Remote.pairingOpen)
                     .put("service", LockService.instance != null)
+                    .put("keys", prefs.selfAdbOk)
             )
             "/api/pair" -> if (post) {
                 val b = body(s)
@@ -310,6 +311,27 @@ private class Server(private val ctx: Context) : NanoHTTPD(Remote.PORT) {
             "/api/icon" -> Control.icon(ctx, s.parms["pkg"].orEmpty())
                 ?.let { newFixedLengthResponse(Response.Status.OK, "image/png", ByteArrayInputStream(it), it.size.toLong()) }
                 ?: newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "")
+            "/api/look/background" -> {
+                if (!post) return newFixedLengthResponse(Response.Status.METHOD_NOT_ALLOWED, MIME_PLAINTEXT, "")
+                val type = Look.typeOf(s.headers["content-type"])
+                    ?: return json(JSONObject().put("error", "Use a photo, GIF or video."), Response.Status.BAD_REQUEST)
+                val len = s.headers["content-length"]?.toLongOrNull() ?: 0L
+                if (len <= 0 || len > 300L * 1024 * 1024) return json(JSONObject().put("error", "Use a file under 300 MB."), Response.Status.BAD_REQUEST)
+                // Streamed to a temp file (videos can be big), then swapped in.
+                val tmp = java.io.File(Look.bgFile(ctx).path + ".part")
+                tmp.outputStream().use { out ->
+                    val buf = ByteArray(64 * 1024)
+                    var left = len
+                    while (left > 0) {
+                        val n = s.inputStream.read(buf, 0, minOf(buf.size.toLong(), left).toInt())
+                        if (n < 0) break
+                        out.write(buf, 0, n); left -= n
+                    }
+                }
+                if (!tmp.renameTo(Look.bgFile(ctx))) return json(JSONObject().put("error", "Couldn't save it."), Response.Status.INTERNAL_ERROR)
+                Look.setBackground(ctx, type)
+                return json(JSONObject().put("ok", true).put("type", type))
+            }
             "/api/profiles/photo" -> {
                 val id = s.parms["id"].orEmpty()
                 if (post) {
@@ -347,6 +369,13 @@ private class Server(private val ctx: Context) : NanoHTTPD(Remote.PORT) {
                     "/api/update/install" -> Control.installUpdate(ctx)
                     "/api/key" -> Control.key(ctx, b.optString("key"))
                     "/api/text" -> Control.type(b.optString("text"), b.optBoolean("submit"))
+                    "/api/type" -> Control.typeChars(ctx, b.optString("text").take(500))
+                    "/api/look" -> {
+                        if (b.has("theme")) Look.setTheme(ctx, b.getString("theme"))
+                        if (b.has("dim")) Look.setDim(ctx, b.getInt("dim"))
+                        true
+                    }
+                    "/api/look/background/remove" -> { Look.removeBackground(ctx); true }
                     "/api/launch" -> Control.launch(ctx, b.optString("pkg"))
                     "/api/settings" -> Control.settings(ctx, b)
                     "/api/profiles/add" -> {

@@ -53,26 +53,55 @@ font-weight:600;display:inline-flex;align-items:center;justify-content:center;ga
 .chip.err{color:var(--err);background:rgba(255,143,126,.13)}
 .note{display:flex;gap:12px;align-items:flex-start;color:var(--dim);font-size:14px}
 .note svg{color:var(--warn);margin-top:1px}
+input,select{font:inherit;color:var(--cream);background:rgba(0,0,0,.25);border:1px solid var(--line);border-radius:16px;height:52px;padding:0 16px;width:100%;outline:none;-webkit-user-select:text;user-select:text}
+input:focus,select:focus{border-color:var(--caramel)}
+select{appearance:none;-webkit-appearance:none}
+select option{background:#1A1714;color:#F4EBD9}
 /* remote */
-.dpad{position:relative;width:min(80vw,300px);aspect-ratio:1;margin:22px auto 10px;border-radius:50%;background:var(--card);border:1px solid var(--line);
+.seg{display:flex;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:4px;margin:16px auto 14px;max-width:280px}
+.seg button{flex:1;border:0;background:transparent;border-radius:999px;height:40px;font-weight:700;color:var(--dim)}
+.seg button.on{background:var(--cream);color:var(--ink)}
+.pad{position:relative;width:100%;aspect-ratio:1/0.92;border-radius:34px;overflow:hidden;touch-action:none;
+background:radial-gradient(rgba(244,235,217,.10) 1px,transparent 1.4px) 0 0/22px 22px,
+radial-gradient(60% 55% at 50% 45%,rgba(200,155,109,.16),transparent 70%),rgba(0,0,0,.2);
+border:1px solid var(--line);box-shadow:inset 0 1px 0 rgba(255,255,255,.04),inset 0 -30px 60px rgba(0,0,0,.25)}
+.pad::before{content:"";position:absolute;left:50%;top:45%;width:92px;height:92px;margin:-46px 0 0 -46px;border-radius:50%;
+border:1px solid rgba(244,235,217,.14);box-shadow:0 0 0 22px rgba(244,235,217,.03),0 0 0 46px rgba(244,235,217,.02);pointer-events:none}
+.pad-hint{position:absolute;left:0;right:0;bottom:18px;text-align:center;color:var(--dim);font-size:13px;pointer-events:none;letter-spacing:.3px}
+.pad-dot{position:absolute;width:76px;height:76px;margin:-38px 0 0 -38px;border-radius:50%;pointer-events:none;opacity:0;
+background:radial-gradient(circle,rgba(244,235,217,.55),rgba(200,155,109,.18) 55%,transparent 72%);transition:opacity .25s}
+.pad-dot.on{opacity:1;transition:opacity .05s}
+.pad-arrow{position:absolute;left:50%;top:50%;width:64px;height:64px;margin:-32px 0 0 -32px;border-radius:50%;pointer-events:none;opacity:0;
+background:var(--cream);color:var(--ink);display:grid;place-items:center;transform:scale(.6)}
+.pad-arrow.flash{animation:flash .32s ease-out}
+@keyframes flash{0%{opacity:.95;transform:scale(.7) translate(var(--dx),var(--dy))}100%{opacity:0;transform:scale(1.15) translate(calc(var(--dx)*2.2),calc(var(--dy)*2.2))}}
+.pad-arrow svg{width:34px;height:34px}
+.dpad{position:relative;width:min(80vw,300px);aspect-ratio:1;margin:8px auto 0;border-radius:50%;background:var(--card);border:1px solid var(--line);
 box-shadow:inset 0 0 40px rgba(0,0,0,.35)}
 .dpad button{position:absolute;border:0;background:transparent;display:grid;place-items:center;color:var(--latte);border-radius:50%;width:30%;height:30%}
 .dpad button:active{background:rgba(244,235,217,.12);color:var(--cream)}
 .dpad .u{top:2%;left:35%}.dpad .d{bottom:2%;left:35%}.dpad .l{left:2%;top:35%}.dpad .r{right:2%;top:35%}
-.dpad .ok{left:30%;top:30%;width:40%;height:40%;background:var(--cream);color:var(--ink);font-weight:700;font-size:18px;
-box-shadow:0 10px 40px -10px rgba(200,155,109,.9)}
+.dpad .ok{left:30%;top:30%;width:40%;height:40%;background:var(--cream);color:var(--ink);font-weight:700;font-size:18px;box-shadow:0 10px 40px -10px rgba(200,155,109,.9)}
 .dpad .ok:active{transform:scale(.94);background:#fff8ea}
 .dpad svg{width:34px;height:34px}
-.keys{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:14px 0}
-.key{height:64px;border-radius:22px;background:var(--card);border:1px solid var(--line);display:grid;place-items:center;transition:transform .1s}
-.key:active{transform:scale(.93);background:var(--cream);color:var(--ink)}
-.key small{display:block;font-size:11px;color:var(--dim);margin-top:-2px}
-.vol{display:flex;align-items:center;gap:12px}
-.vol .key{flex:1}
-.type{display:flex;gap:10px;margin-top:12px}
-input,select{font:inherit;color:var(--cream);background:rgba(0,0,0,.25);border:1px solid var(--line);border-radius:16px;height:52px;padding:0 16px;width:100%;outline:none;-webkit-user-select:text;user-select:text}
-input:focus,select:focus{border-color:var(--caramel)}
-select{appearance:none}
+.nav3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:16px 0 12px}
+.key{height:66px;border-radius:22px;background:var(--card);border:1px solid var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;transition:transform .1s}
+.key:active,.rocker button:active,.media button:active,.kbbtn:active{transform:scale(.93);background:var(--cream);color:var(--ink)}
+.key small{font-size:11px;color:var(--dim)}
+.rmain{display:grid;grid-template-columns:76px 1fr 76px;gap:12px;align-items:stretch}
+.rocker{display:flex;flex-direction:column;align-items:center;justify-content:space-between;border-radius:38px;background:var(--card);border:1px solid var(--line);padding:6px 0}
+.rocker button{width:64px;height:64px;border-radius:50%;border:0;background:transparent;display:grid;place-items:center;transition:transform .1s}
+.rocker span{font:700 11px/1 system-ui;letter-spacing:1.2px;color:var(--dim)}
+.rmid{display:flex;flex-direction:column;gap:12px}
+.media{display:flex;gap:10px;align-items:center;justify-content:center;flex:1;border-radius:26px;background:var(--card);border:1px solid var(--line);padding:10px}
+.media button{width:52px;height:52px;border-radius:50%;border:0;background:transparent;display:grid;place-items:center;transition:transform .1s}
+.media .pp{width:64px;height:64px;background:var(--cream);color:var(--ink);box-shadow:0 10px 30px -10px rgba(200,155,109,.9)}
+.kbbtn{height:56px;border-radius:22px;border:1px solid var(--line);background:var(--card);display:flex;align-items:center;justify-content:center;gap:10px;font-weight:700;transition:transform .1s}
+#power-btn.awake{color:var(--good)}
+.sheet{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;z-index:5}
+.sheet-card{width:100%;background:var(--bg1);border-top:1px solid var(--line);border-radius:28px 28px 0 0;padding:18px 18px calc(18px + env(safe-area-inset-bottom));
+box-shadow:0 -20px 60px rgba(0,0,0,.5)}
+.sheet-top{display:flex;align-items:center;justify-content:space-between;font-size:18px}
 /* apps */
 .apps{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-top:14px}
 .app{position:relative;border-radius:20px;background:var(--card);border:1px solid var(--line);overflow:hidden;text-align:left;padding:0;cursor:pointer}
@@ -96,6 +125,12 @@ select{appearance:none}
 .dev:first-of-type{border-top:0}
 .dev .t{flex:1}.dev .t span{color:var(--dim);font-size:13px;display:block}
 .small{font-size:13px;color:var(--dim)}
+.themes{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:14px}
+.theme{border-radius:18px;border:2px solid transparent;padding:10px 4px 8px;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:12px;font-weight:700}
+.theme i{width:30px;height:30px;border-radius:50%}
+.theme.on{border-color:var(--cream)}
+.prog{height:6px;border-radius:9px;background:rgba(244,235,217,.12);margin-top:10px;overflow:hidden}
+.prog div{height:100%;width:0;background:var(--accent);transition:width .2s}
 .av{width:52px;height:52px;border-radius:50%;flex:none;display:grid;place-items:center;font-weight:800;font-size:22px;color:var(--ink);overflow:hidden;background-size:cover;background-position:center}
 .prof{display:flex;align-items:center;gap:14px;padding:14px 0;border-top:1px solid var(--line)}
 .prof:first-child{border-top:0}
@@ -186,32 +221,61 @@ background:var(--cream);color:var(--ink);padding:12px 18px;border-radius:16px;fo
 
   <!-- Remote -->
   <section id="t-remote" class="tab" hidden>
-    <div class="dpad">
+    <div class="seg" id="rmode">
+      <button data-mode="pad" class="on">Touchpad</button><button data-mode="dpad">Buttons</button>
+    </div>
+    <div class="pad" id="pad">
+      <div class="pad-dot" id="pad-dot"></div>
+      <div class="pad-arrow" id="pad-arrow"></div>
+      <span class="pad-hint">Swipe to move · Tap to select</span>
+    </div>
+    <div class="dpad" id="dpad" hidden>
       <button class="u" data-key="up" data-repeat><svg viewBox="0 0 24 24"><path d="M7.4 15.4 12 10.8l4.6 4.6L18 14l-6-6-6 6z"/></svg></button>
       <button class="l" data-key="left" data-repeat><svg viewBox="0 0 24 24"><path d="M15.4 16.6 10.8 12l4.6-4.6L14 6l-6 6 6 6z"/></svg></button>
       <button class="ok" data-key="center">OK</button>
       <button class="r" data-key="right" data-repeat><svg viewBox="0 0 24 24"><path d="M8.6 16.6 13.2 12 8.6 7.4 10 6l6 6-6 6z"/></svg></button>
       <button class="d" data-key="down" data-repeat><svg viewBox="0 0 24 24"><path d="M7.4 8.6 12 13.2l4.6-4.6L18 10l-6 6-6-6z"/></svg></button>
     </div>
-    <div class="keys">
-      <button class="key" data-key="back"><div><svg viewBox="0 0 24 24"><path d="M20 11H7.8l5.6-5.6L12 4l-8 8 8 8 1.4-1.4L7.8 13H20z"/></svg><small>Back</small></div></button>
-      <button class="key" data-key="home"><div><svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg><small>Home</small></div></button>
-      <button class="key" data-key="recents"><div><svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg><small>Apps</small></div></button>
-      <button class="key" data-key="rewind"><svg viewBox="0 0 24 24"><path d="M11 18V6l-8.5 6 8.5 6zm.5-6 8.5 6V6l-8.5 6z"/></svg></button>
-      <button class="key" data-key="playpause"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
-      <button class="key" data-key="ffwd"><svg viewBox="0 0 24 24"><path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/></svg></button>
+    <div class="nav3">
+      <button class="key" data-key="back"><svg viewBox="0 0 24 24"><path d="M20 11H7.8l5.6-5.6L12 4l-8 8 8 8 1.4-1.4L7.8 13H20z"/></svg><small>Back</small></button>
+      <button class="key" data-key="home"><svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg><small>Home</small></button>
+      <button class="key" data-key="apps"><svg viewBox="0 0 24 24"><path d="M4 8h4V4H4v4zm6 12h4v-4h-4v4zm-6 0h4v-4H4v4zm0-6h4v-4H4v4zm6 0h4v-4h-4v4zm6-10v4h4V4h-4zm-6 4h4V4h-4v4zm6 6h4v-4h-4v4zm0 6h4v-4h-4v4z"/></svg><small>Apps</small></button>
     </div>
-    <div class="vol">
-      <button class="key" data-key="voldown" data-repeat><div><svg viewBox="0 0 24 24"><path d="M18.5 12A4.5 4.5 0 0 0 16 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02zM5 9v6h4l5 5V4L9 9H5z"/></svg><small>Vol −</small></div></button>
-      <button class="key" data-key="mute"><div><svg viewBox="0 0 24 24"><path d="M16.5 12A4.5 4.5 0 0 0 14 7.97v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51A8.8 8.8 0 0 0 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3 3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06a8.99 8.99 0 0 0 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4 9.91 6.09 12 8.18V4z"/></svg><small>Mute</small></div></button>
-      <button class="key" data-key="volup" data-repeat><div><svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg><small>Vol +</small></div></button>
+    <div class="rmain">
+      <div class="rocker">
+        <button data-key="volup" data-repeat><svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg></button>
+        <span>VOL</span>
+        <button data-key="voldown" data-repeat><svg viewBox="0 0 24 24"><path d="M19 13H5v-2h14v2z"/></svg></button>
+      </div>
+      <div class="rmid">
+        <div class="media">
+          <button data-key="rewind"><svg viewBox="0 0 24 24"><path d="M11 18V6l-8.5 6 8.5 6zm.5-6 8.5 6V6l-8.5 6z"/></svg></button>
+          <button class="pp" data-key="playpause"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
+          <button data-key="ffwd"><svg viewBox="0 0 24 24"><path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/></svg></button>
+        </div>
+        <button class="kbbtn" id="kb-open"><svg viewBox="0 0 24 24"><path d="M20 5H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm-9 3h2v2h-2V8zm0 3h2v2h-2v-2zM8 8h2v2H8V8zm0 3h2v2H8v-2zm-1 2H5v-2h2v2zm0-3H5V8h2v2zm9 7H8v-2h8v2zm0-4h-2v-2h2v2zm0-3h-2V8h2v2zm3 3h-2v-2h2v2zm0-3h-2V8h2v2z"/></svg>Keyboard</button>
+      </div>
+      <div class="rocker">
+        <button data-key="power" id="power-btn"><svg viewBox="0 0 24 24"><path d="M13 3h-2v10h2V3zm4.83 2.17-1.42 1.42A6.92 6.92 0 0 1 19 12a7 7 0 1 1-11.42-5.42L6.17 5.17A8.93 8.93 0 0 0 3 12a9 9 0 0 0 18 0c0-2.74-1.23-5.18-3.17-6.83z"/></svg></button>
+        <span>&nbsp;</span>
+        <button data-key="mute"><svg viewBox="0 0 24 24"><path d="M16.5 12A4.5 4.5 0 0 0 14 7.97v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51A8.8 8.8 0 0 0 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3 3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06a8.99 8.99 0 0 0 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4 9.91 6.09 12 8.18V4z"/></svg></button>
+      </div>
     </div>
-    <div class="card">
-      <h2>Type on the TV</h2>
-      <p class="sub small">Pick a search box on the TV first, then type here.</p>
-      <div class="type"><input id="type-text" placeholder="Search for…" enterkeyhint="search" autocomplete="off"><button class="btn primary" id="type-go"><svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z"/></svg></button></div>
-    </div>
+    <div class="card note" id="keys-hint" hidden><svg viewBox="0 0 24 24"><path d="M12 2 1 21h22L12 2zm1 15h-2v-2h2v2zm0-4h-2V9h2v4z"/></svg>
+      <div>For volume, typing and Turn on, the TV needs to allow it once: on the TV open <b style="color:var(--cream)">TV Lock → Options → Phone remote → Allow</b>.</div></div>
   </section>
+
+  <div class="sheet" id="kb-sheet" hidden>
+    <div class="sheet-card">
+      <div class="sheet-top"><b>Typing on the TV</b><button class="btn mini" id="kb-done">Done</button></div>
+      <p class="small" style="margin:4px 0 12px">Pick a text box on the TV, then type. Each letter appears on the TV as you type.</p>
+      <input id="kb-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" placeholder="Type here…">
+      <div class="grid2" style="margin-top:12px">
+        <button class="btn" data-key="del"><svg viewBox="0 0 24 24"><path d="M22 3H7c-.69 0-1.23.35-1.59.88L0 12l5.41 8.11c.36.53.9.89 1.59.89h15a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm-3 12.59L17.59 17 14 13.41 10.41 17 9 15.59 12.59 12 9 8.41 10.41 7 14 10.59 17.59 7 19 8.41 15.41 12 19 15.59z"/></svg>Delete</button>
+        <button class="btn primary" data-key="enter"><svg viewBox="0 0 24 24"><path d="M19 7v4H5.83l3.58-3.59L8 6l-6 6 6 6 1.41-1.41L5.83 13H21V7z"/></svg>Enter</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Apps -->
   <section id="t-apps" class="tab" hidden>
@@ -264,6 +328,21 @@ background:var(--cream);color:var(--ink);padding:12px 18px;border-radius:16px;fo
       <h2>TV Lock app</h2>
       <p class="sub small" style="margin-bottom:4px">Recommended: finds your TV and sets it up for you.</p>
       <a class="btn primary wide" style="margin-top:10px;text-decoration:none" href="/download/phone"><svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>Download TV Lock</a>
+    </div>
+    <div class="card">
+      <h2>TV look</h2>
+      <p class="sub small">Colours of the TV app, and a photo, GIF or video behind the lock screen.</p>
+      <div class="themes" id="themes"></div>
+      <h2 style="font-size:16px;margin-top:18px">Background</h2>
+      <p class="sub small" id="bg-now">No background</p>
+      <div class="prog" id="bg-prog" hidden><div></div></div>
+      <div class="grid2" style="margin-top:12px">
+        <button class="btn primary" id="bg-up"><svg viewBox="0 0 24 24"><path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"/></svg>Upload</button>
+        <button class="btn" id="bg-rm">Remove</button>
+      </div>
+      <div class="row" style="cursor:default;border:0;padding-bottom:0"><div class="t"><b>Darken it</b><span>So the lock screen stays easy to read</span></div>
+        <select id="bg-dim" style="width:auto;height:44px"><option value="0">Off</option><option value="20">20%</option><option value="40">40%</option><option value="55">55%</option><option value="70">70%</option><option value="85">85%</option></select></div>
+      <input type="file" id="bg-file" accept="image/*,video/*" hidden>
     </div>
     <div class="card">
       <h2>TV software</h2>
@@ -447,6 +526,9 @@ function render() {
   renderDevices();
   renderProfiles();
   renderTvUpdate();
+  renderLook();
+  $('#keys-hint').hidden = !!tv.keys;
+  $('#power-btn').classList.toggle('awake', !!tv.awake);
 }
 
 function renderDevices() {
@@ -494,6 +576,43 @@ $$('[data-set]').forEach(p => (p.closest('.row') || p).addEventListener('click',
   await api('/api/settings', { [k]: v }); poll();
 }));
 $('#idle').onchange = async e => { await api('/api/settings', { idleMinutes: +e.target.value }); toast('Saved'); poll(); };
+// TV look: theme + background
+function renderLook() {
+  const look = state.tv.look; if (!look) return;
+  const box = $('#themes'), sig = look.theme;
+  if (box.dataset.sig !== sig) {
+    box.dataset.sig = sig; box.innerHTML = '';
+    look.themes.forEach(t => {
+      const b = document.createElement('button'); b.className = 'theme' + (t.id === look.theme ? ' on' : '');
+      b.style.background = t.bg; b.style.color = t.accent;
+      b.innerHTML = `<i style="background:linear-gradient(135deg,${t.accent},${t.bg})"></i>`;
+      b.append(t.name);
+      b.onclick = async () => { buzz(); await api('/api/look', { theme: t.id }); toast('The TV is now ' + t.name); };
+      box.appendChild(b);
+    });
+  }
+  $('#bg-now').textContent = { image: 'A photo is behind the lock screen.', gif: 'A GIF is behind the lock screen.', video: 'A video is behind the lock screen.' }[look.bg] || 'No background yet.';
+  $('#bg-rm').disabled = !look.bg;
+  if (document.activeElement !== $('#bg-dim')) $('#bg-dim').value = String([0, 20, 40, 55, 70, 85].reduce((a, v) => Math.abs(v - look.dim) < Math.abs(a - look.dim) ? v : a, 55));
+}
+$('#bg-up').onclick = () => { $('#bg-file').value = ''; $('#bg-file').click(); };
+$('#bg-rm').onclick = async () => { buzz(); await api('/api/look/background/remove', {}); toast('Background removed'); };
+$('#bg-dim').onchange = async e => { await api('/api/look', { dim: +e.target.value }); };
+$('#bg-file').onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  if (!/^(image|video)\//.test(f.type)) { toast('Pick a photo, GIF or video'); return; }
+  // XHR for the progress bar (videos can be big).
+  const x = new XMLHttpRequest(), bar = $('#bg-prog');
+  bar.hidden = false; bar.firstElementChild.style.width = '0';
+  x.open('POST', '/api/look/background');
+  x.setRequestHeader('Authorization', 'Bearer ' + token);
+  x.setRequestHeader('Content-Type', f.type);
+  x.upload.onprogress = ev => { if (ev.lengthComputable) bar.firstElementChild.style.width = (ev.loaded / ev.total * 100) + '%'; };
+  x.onload = () => { bar.hidden = true; toast(x.status === 200 ? 'Background set on the TV' : (JSON.parse(x.responseText || '{}').error || 'Upload failed')); };
+  x.onerror = () => { bar.hidden = true; toast('Upload failed'); };
+  x.send(f);
+};
+
 // TV updates (the TV downloads and installs them itself)
 function renderTvUpdate() {
   const u = state.tv.update || { state: 'idle' }, t = $('#tvup-text'), b = $('#tvup-btn');
@@ -604,7 +723,7 @@ $('#pf-file').onchange = async e => {
 async function key(k) {
   buzz();
   try { const j = await apiJson('/api/key', { key: k }); if (!j.ok) toast("The TV couldn't do that"); } catch (e) {}
-  if (k === 'wake' || k === 'sleep') setTimeout(poll, 1500);
+  if (k === 'wake' || k === 'sleep' || k === 'power') setTimeout(poll, 1500);
 }
 $$('[data-key]').forEach(b => {
   let rep = null, timer = null;
@@ -617,14 +736,66 @@ $$('[data-key]').forEach(b => {
     ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => b.addEventListener(ev, stop));
   } else b.addEventListener('click', () => key(b.dataset.key));
 });
-async function sendText() {
-  const t = $('#type-text').value;
-  const j = await apiJson('/api/text', { text: t, submit: true });
-  toast(j.ok ? 'Sent to the TV' : 'Select a search box on the TV first');
-  if (j.ok) $('#type-text').value = '';
+// Touchpad: swipe to move (keep dragging for more steps), tap to select.
+(() => {
+  const pad = $('#pad'), dot = $('#pad-dot'), arrow = $('#pad-arrow');
+  const STEP = 42, ARROWS = { up: 'M7.4 15.4 12 10.8l4.6 4.6L18 14l-6-6-6 6z', down: 'M7.4 8.6 12 13.2l4.6-4.6L18 10l-6 6-6-6z',
+    left: 'M15.4 16.6 10.8 12l4.6-4.6L14 6l-6 6 6 6z', right: 'M8.6 16.6 13.2 12 8.6 7.4 10 6l6 6-6 6z' };
+  let sx = 0, sy = 0, lx = 0, ly = 0, t0 = 0, moved = false, down = false;
+  const pos = e => { const r = pad.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+  const flash = dir => {
+    const d = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] }[dir];
+    arrow.innerHTML = `<svg viewBox="0 0 24 24"><path d="${ARROWS[dir]}"/></svg>`;
+    arrow.style.setProperty('--dx', d[0] * 22 + 'px'); arrow.style.setProperty('--dy', d[1] * 22 + 'px');
+    arrow.classList.remove('flash'); void arrow.offsetWidth; arrow.classList.add('flash');
+  };
+  pad.addEventListener('pointerdown', e => {
+    pad.setPointerCapture(e.pointerId); down = true; moved = false; t0 = Date.now();
+    [sx, sy] = pos(e); lx = sx; ly = sy;
+    dot.style.left = sx + 'px'; dot.style.top = sy + 'px'; dot.classList.add('on');
+  });
+  pad.addEventListener('pointermove', e => {
+    if (!down) return;
+    const [x, y] = pos(e); dot.style.left = x + 'px'; dot.style.top = y + 'px';
+    const dx = x - lx, dy = y - ly;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < STEP) return;
+    const dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
+    lx = x; ly = y; moved = true; flash(dir); key(dir);
+  });
+  const end = () => {
+    if (!down) return; down = false; dot.classList.remove('on');
+    if (!moved && Date.now() - t0 < 450) { arrow.innerHTML = '<b style="font-size:15px">OK</b>'; arrow.style.setProperty('--dx', '0px'); arrow.style.setProperty('--dy', '0px');
+      arrow.classList.remove('flash'); void arrow.offsetWidth; arrow.classList.add('flash'); key('center'); }
+  };
+  pad.addEventListener('pointerup', end); pad.addEventListener('pointercancel', end);
+})();
+
+// Touchpad / buttons
+function setMode(m) {
+  localStorage.setItem('tvlock.rmode', m);
+  $$('#rmode button').forEach(b => b.classList.toggle('on', b.dataset.mode === m));
+  $('#pad').hidden = m !== 'pad'; $('#dpad').hidden = m !== 'dpad';
 }
-$('#type-go').onclick = sendText;
-$('#type-text').addEventListener('keydown', e => { if (e.key === 'Enter') sendText(); });
+$$('#rmode button').forEach(b => b.onclick = () => { buzz(); setMode(b.dataset.mode); });
+setMode(localStorage.getItem('tvlock.rmode') || 'pad');
+
+// Keyboard: what you type here appears on the TV as you type (added letters, deletes, Enter).
+let kbLast = '', kbQueue = Promise.resolve();
+const kbSend = fn => { kbQueue = kbQueue.then(fn).catch(() => {}); };
+$('#kb-open').onclick = () => { buzz(); $('#kb-sheet').hidden = false; kbLast = ''; $('#kb-input').value = ''; setTimeout(() => $('#kb-input').focus(), 50); };
+$('#kb-done').onclick = () => { $('#kb-sheet').hidden = true; $('#kb-input').blur(); };
+$('#kb-sheet').addEventListener('click', e => { if (e.target.id === 'kb-sheet') $('#kb-done').click(); });
+$('#kb-input').addEventListener('input', () => {
+  const now = $('#kb-input').value, last = kbLast;
+  let p = 0; while (p < now.length && p < last.length && now[p] === last[p]) p++;
+  const dels = last.length - p, add = now.slice(p);
+  kbLast = now;
+  for (let i = 0; i < dels; i++) kbSend(() => api('/api/key', { key: 'del' }));
+  if (add) kbSend(() => api('/api/type', { text: add }));
+});
+$('#kb-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); kbSend(() => api('/api/key', { key: 'enter' })); }
+});
 
 // ---------------------------------------------------------------- apps
 let appsLoaded = false;

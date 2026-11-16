@@ -784,6 +784,11 @@ private fun Options(prefs: Prefs) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).page(), verticalArrangement = Gap) {
         ScreenTitle("Options")
         Spacer(Modifier.height(10.dp))
+        LookSection()
+        Spacer(Modifier.height(8.dp))
+        KeysSection(prefs)
+        Spacer(Modifier.height(8.dp))
+        Text("LOCKING", style = MaterialTheme.typography.labelLarge, color = C.caramel)
         TvToggle(
             "Lock when the TV sleeps or switches inputs",
             "The PIN comes up when you turn the TV back on or switch back to this box's HDMI.",
@@ -1536,6 +1541,90 @@ private fun AutoSetupCard(fr: FocusRequester, changed: () -> Unit) {
                     runCatching { ctx.startActivity(android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
                 }, icon = Icons.Rounded.DeveloperMode)
             }
+        }
+    }
+}
+
+// ---------------------------------------------------------------- look: theme + background
+
+@Composable
+private fun LookSection() {
+    val ctx = LocalContext.current
+    Text("THEME", style = MaterialTheme.typography.labelLarge, color = C.caramel)
+    Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        Look.palettes.forEach { pal ->
+            val on = Look.palette.id == pal.id
+            TvSurface({ Look.setTheme(ctx, pal.id) }, Modifier.width(112.dp).height(96.dp), RoundedCornerShape(20.dp),
+                color = pal.bg1, focusColor = pal.accent, selected = on, scale = 1.08f) { focused ->
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(Modifier.size(34.dp).clip(CircleShape).background(
+                        androidx.compose.ui.graphics.Brush.linearGradient(listOf(pal.accent, pal.accent3))))
+                    Spacer(Modifier.height(8.dp))
+                    Text(pal.name, style = MaterialTheme.typography.labelLarge, color = if (focused) pal.ink else pal.text)
+                }
+            }
+        }
+    }
+    Spacer(Modifier.height(10.dp))
+    Text("BACKGROUND", style = MaterialTheme.typography.labelLarge, color = C.caramel)
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(C.card).padding(20.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Badge(when (Look.bgType) { "video" -> Icons.Rounded.Movie; "gif" -> Icons.Rounded.Gif; "image" -> Icons.Rounded.Image; else -> Icons.Rounded.Wallpaper }, 50.dp)
+        Spacer(Modifier.width(16.dp))
+        Column(Modifier.weight(1f)) {
+            Text(when (Look.bgType) { "video" -> "Video background"; "gif" -> "GIF background"; "image" -> "Photo background"; else -> "No background" },
+                style = MaterialTheme.typography.titleMedium)
+            Text("Upload a photo, GIF or video from your phone: TV Lock app or web remote → Settings → TV look.",
+                style = MaterialTheme.typography.bodyMedium, color = C.dim)
+        }
+        if (Look.bgType.isNotEmpty()) {
+            Spacer(Modifier.width(12.dp))
+            TvButton("Dim ${Look.dim}%", { Look.setDim(ctx, if (Look.dim >= 80) 0 else Look.dim + 20) }, icon = Icons.Rounded.Brightness6)
+            Spacer(Modifier.width(12.dp))
+            TvButton("Remove", { Look.removeBackground(ctx) }, icon = Icons.Rounded.DeleteOutline)
+        }
+    }
+}
+
+/** "Let phones press keys": real volume, typing and Turn on through this TV's own debugging. */
+@Composable
+private fun KeysSection(prefs: Prefs) {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var on by remember { mutableStateOf(prefs.selfAdbOk) }
+    var busy by remember { mutableStateOf(false) }
+    var failed by remember { mutableStateOf(false) }
+    Text("PHONE REMOTE", style = MaterialTheme.typography.labelLarge, color = C.caramel)
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(C.card).padding(20.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Badge(Icons.Rounded.Keyboard, 50.dp)
+        Spacer(Modifier.width(16.dp))
+        Column(Modifier.weight(1f)) {
+            Text(if (on) "Phones can press TV keys" else "Let phones press TV keys", style = MaterialTheme.typography.titleMedium)
+            Text(
+                when {
+                    on -> "Volume, typing, media keys and Turn on work from your phone."
+                    busy -> "The TV asks “Allow debugging?”: tick “Always allow”, then press Allow."
+                    failed -> "Not allowed. Is USB/network debugging on? Settings → Developer options."
+                    else -> "For volume, typing and Turn on from your phone. The TV asks you to allow it once."
+                },
+                style = MaterialTheme.typography.bodyMedium, color = if (failed) C.error else C.dim,
+            )
+        }
+        if (!on) {
+            Spacer(Modifier.width(12.dp))
+            TvButton(if (busy) "Waiting…" else "Allow", {
+                if (busy) return@TvButton
+                busy = true; failed = false
+                scope.launch {
+                    val ok = withContext(Dispatchers.IO) { dev.alexaero.tvlock.SelfAdb.enable(ctx) }
+                    busy = false; on = ok; failed = !ok
+                }
+            }, icon = Icons.Rounded.Keyboard, primary = true)
         }
     }
 }

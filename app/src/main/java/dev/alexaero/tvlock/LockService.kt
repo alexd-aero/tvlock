@@ -105,6 +105,7 @@ class LockService : AccessibilityService() {
 
     override fun onServiceConnected() {
         prefs = Prefs(this)
+        Look.load(this)
         overlay = Overlay(this, WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY)
         silencer = Silencer(this)
         homes = homePackages()

@@ -18,6 +18,7 @@ import android.view.KeyEvent
 import android.view.View
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.core.graphics.drawable.toBitmap
+import androidx.compose.ui.graphics.toArgb
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
@@ -49,6 +50,11 @@ object Control {
             .put("version", Updater.current(ctx))
             .put("android", Build.VERSION.RELEASE)
             .put("service", svc != null)
+            .put("keys", p.selfAdbOk)
+            .put("look", JSONObject().put("theme", Look.palette.id).put("bg", Look.bgType).put("dim", Look.dim)
+                .put("themes", JSONArray().apply { Look.palettes.forEach { put(JSONObject().put("id", it.id).put("name", it.name)
+                    .put("bg", String.format("#%06X", it.bg1.toArgb() and 0xFFFFFF))
+                    .put("accent", String.format("#%06X", it.accent.toArgb() and 0xFFFFFF))) } }))
             .put("awake", ctx.getSystemService(PowerManager::class.java).isInteractive)
             .put("lock", when (lock) {
                 Lock.Boot -> "tv"; is Lock.App -> "app"; Lock.Test -> "test"
@@ -106,24 +112,50 @@ object Control {
 
     // ------------------------------------------------------------- remote control
 
+    /** Real key presses through [SelfAdb] where allowed; the next-best way otherwise. */
+    private val realKeys = mapOf(
+        "volup" to "KEYCODE_VOLUME_UP", "voldown" to "KEYCODE_VOLUME_DOWN", "mute" to "KEYCODE_VOLUME_MUTE",
+        "playpause" to "KEYCODE_MEDIA_PLAY_PAUSE", "next" to "KEYCODE_MEDIA_NEXT", "prev" to "KEYCODE_MEDIA_PREVIOUS",
+        "rewind" to "KEYCODE_MEDIA_REWIND", "ffwd" to "KEYCODE_MEDIA_FAST_FORWARD",
+        "del" to "KEYCODE_DEL", "enter" to "KEYCODE_ENTER", "search" to "KEYCODE_SEARCH",
+        "up" to "KEYCODE_DPAD_UP", "down" to "KEYCODE_DPAD_DOWN", "left" to "KEYCODE_DPAD_LEFT",
+        "right" to "KEYCODE_DPAD_RIGHT", "center" to "KEYCODE_DPAD_CENTER", "back" to "KEYCODE_BACK", "home" to "KEYCODE_HOME",
+    )
+
     fun key(ctx: Context, k: String): Boolean {
         val audio = ctx.getSystemService(AudioManager::class.java)
         when (k) {
-            "playpause" -> return media(audio, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
-            "next" -> return media(audio, KeyEvent.KEYCODE_MEDIA_NEXT)
-            "prev" -> return media(audio, KeyEvent.KEYCODE_MEDIA_PREVIOUS)
-            "rewind" -> return media(audio, KeyEvent.KEYCODE_MEDIA_REWIND)
-            "ffwd" -> return media(audio, KeyEvent.KEYCODE_MEDIA_FAST_FORWARD)
-            "volup", "voldown", "mute" -> {
-                val dir = when (k) {
-                    "volup" -> AudioManager.ADJUST_RAISE
-                    "voldown" -> AudioManager.ADJUST_LOWER
-                    else -> AudioManager.ADJUST_TOGGLE_MUTE
+            // Real keys first: they reach HDMI-CEC (soundbar/TV volume) and every app.
+            "volup", "voldown", "mute", "playpause", "next", "prev", "rewind", "ffwd", "del", "enter", "search" -> {
+                if (SelfAdb.key(ctx, realKeys.getValue(k))) return true
+                return when (k) {
+                    "playpause" -> media(audio, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
+                    "next" -> media(audio, KeyEvent.KEYCODE_MEDIA_NEXT)
+                    "prev" -> media(audio, KeyEvent.KEYCODE_MEDIA_PREVIOUS)
+                    "rewind" -> media(audio, KeyEvent.KEYCODE_MEDIA_REWIND)
+                    "ffwd" -> media(audio, KeyEvent.KEYCODE_MEDIA_FAST_FORWARD)
+                    "volup", "voldown", "mute" -> {
+                        val dir = when (k) {
+                            "volup" -> AudioManager.ADJUST_RAISE
+                            "voldown" -> AudioManager.ADJUST_LOWER
+                            else -> AudioManager.ADJUST_TOGGLE_MUTE
+                        }
+                        audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, dir, AudioManager.FLAG_SHOW_UI)
+                        true
+                    }
+                    "del", "enter" -> editKey(k)
+                    else -> false
                 }
-                audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, dir, AudioManager.FLAG_SHOW_UI)
-                return true
             }
             "wake" -> return wake(ctx)
+            "power" -> return if (ctx.getSystemService(PowerManager::class.java).isInteractive) key(ctx, "sleep") else wake(ctx)
+            "apps" -> return onMain {
+                // The TV's own list of all apps.
+                LockState.grace()
+                runCatching {
+                    ctx.startActivity(Intent(Intent.ACTION_ALL_APPS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                }.isSuccess
+            }
             "settings" -> return onMain {
                 LockState.grace()
                 runCatching {
@@ -131,7 +163,7 @@ object Control {
                 }.isSuccess
             }
         }
-        val s = svc ?: return false
+        val s = svc ?: return SelfAdb.key(ctx, realKeys[k] ?: return false)
         return onMain {
             val global = when (k) {
                 "back" -> AccessibilityService.GLOBAL_ACTION_BACK
@@ -149,6 +181,22 @@ object Control {
                 else -> null
             }
             global != null && s.performGlobalAction(global)
+        }
+    }
+
+    /** Backspace / Enter in the focused text box without real keys. */
+    private fun editKey(k: String): Boolean {
+        val s = svc ?: return false
+        return onMain {
+            val node = s.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) ?: return@onMain false
+            if (k == "enter") {
+                if (Build.VERSION.SDK_INT >= 30) node.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER.id) else false
+            } else {
+                val t = node.text?.toString().orEmpty()
+                node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, Bundle().apply {
+                    putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, t.dropLast(1))
+                })
+            }
         }
     }
 
@@ -172,17 +220,39 @@ object Control {
         return f.focusSearch(dir)?.performAction(AccessibilityNodeInfo.ACTION_FOCUS) == true
     }
 
+    /**
+     * Turns the TV on: wakes this box (which makes the TV switch on and to this input over HDMI-CEC),
+     * or, if the box is already on, asks the TV to switch to it ("one touch play").
+     */
     @SuppressLint("WakelockTimeout")
     @Suppress("DEPRECATION")
     private fun wake(ctx: Context): Boolean {
         val pm = ctx.getSystemService(PowerManager::class.java)
-        if (pm.isInteractive) return true
-        val wl = pm.newWakeLock(
+        if (pm.isInteractive) {
+            SelfAdb.shell(ctx, "cmd hdmi_control onetouchplay")
+            return true
+        }
+        // Needs the TURN_SCREEN_ON app-op on Android 14 (granted by setup).
+        pm.newWakeLock(
             PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP or PowerManager.ON_AFTER_RELEASE,
             "tvlock:wake",
-        )
-        wl.acquire(3_000)
+        ).acquire(3_000)
+        if (!pm.isInteractive) SelfAdb.key(ctx, "KEYCODE_WAKEUP")
         return true
+    }
+
+    /** Types (adds) text in the focused text box on the TV, like a keyboard. */
+    fun typeChars(ctx: Context, text: String): Boolean {
+        if (SelfAdb.type(ctx, text)) return true
+        val s = svc ?: return false
+        return onMain {
+            val node = s.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+            if (node == null || !node.isEditable) return@onMain false
+            val cur = node.text?.toString().orEmpty().let { if (Build.VERSION.SDK_INT >= 26 && node.isShowingHintText) "" else it }
+            node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, Bundle().apply {
+                putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, cur + text)
+            })
+        }
     }
 
     /** Types into the focused text box on the TV (search fields and so on). */

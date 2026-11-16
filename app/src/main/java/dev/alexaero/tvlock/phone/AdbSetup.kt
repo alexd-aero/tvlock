@@ -26,10 +26,11 @@ class AdbSetup(private val ctx: Context, private val ip: String) {
             Step("Install TV Lock on the TV", "Copies this app to the TV, or updates it."),
             Step("Allow Accessibility", "Lets TV Lock show the lock screen over everything."),
             Step("Allow showing over other apps", "A backup way to show the lock right as the TV starts."),
-            Step("Allow updates", "So TV Lock can update itself later."),
+            Step("Allow updates and waking the TV", "So TV Lock can update itself, and Turn on works from your phone."),
             Step("Lock when you switch HDMI inputs", "The PIN is up when you switch back to this box. The box stays on."),
             Step("Connect this phone", "So this phone can unlock and control the TV."),
             Step("Open TV Lock on the TV", "The TV shows the setup screen while you finish here."),
+            Step("Let your phone press TV keys", "For volume, typing and Turn on. The TV asks to allow once more: press Allow."),
         )
     )
 
@@ -88,6 +89,15 @@ class AdbSetup(private val ctx: Context, private val ip: String) {
                     sh("am start -n $PKG/.MainActivity --ez phoneSetup true")
                     set(i, St.DONE)
                 }
+
+                i = 8; set(i, St.RUN)
+                if (hello?.optBoolean("keys") == true) set(i, St.SKIP, "Already allowed")
+                else {
+                    sh("am broadcast -n $PKG/.SetupReceiver --es token $token --es name keys --ez enableKeys true")
+                    var ok = false
+                    repeat(120) { if (!ok) { delay(1000); ok = TvApi("$ip:8642").hello()?.optBoolean("keys") == true } }
+                    set(i, if (ok) St.DONE else St.SKIP, if (ok) null else "Not allowed. You can allow it later in TV Lock → Options on the TV.")
+                }
                 Triple("$ip:8642", token, hello?.optString("name")?.ifBlank { null } ?: tvName)
             }
         } catch (e: Exception) {
@@ -114,6 +124,7 @@ class AdbSetup(private val ctx: Context, private val ip: String) {
         set(i, if (sh("appops set $PKG SYSTEM_ALERT_WINDOW allow").isEmpty()) St.DONE else St.SKIP)
 
         i++; set(i, St.RUN)
+        sh("appops set $PKG TURN_SCREEN_ON allow") // lets "Turn on" on your phone wake the TV
         set(i, if (sh("appops set $PKG REQUEST_INSTALL_PACKAGES allow").isEmpty()) St.DONE else St.SKIP)
 
         i++; set(i, St.RUN)
@@ -133,11 +144,13 @@ class AdbSetup(private val ctx: Context, private val ip: String) {
         steps.value = listOf(
             Step("Allow TV Lock to set itself up", "Press Allow, and tick “Always allow from this computer”."),
         ) + steps.value.subList(2, 6)
+        // Same key as SelfAdb: once allowed here, TV Lock can also press real keys for phones.
         var i = 0
         try {
             set(i, St.RUN)
             connect().use { d ->
                 set(i, St.DONE)
+                dev.alexaero.tvlock.Prefs(ctx).selfAdbOk = true
                 i = 1
                 grants(1) { d.shell(it).allOutput.trim() }
             }

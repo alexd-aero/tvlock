@@ -18,23 +18,25 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import dev.alexaero.tvlock.Look
 
+/** Colours of the current theme ([Look.palette]); reading them in a composable recolours it when the theme changes. */
 object C {
-    // Warm near-black backdrop, cream foreground.
-    val bg0 = Color(0xFF0D0C0A)
-    val bg1 = Color(0xFF1A1714)
-    val card = Color(0x12F4EBD9)
-    val cardLine = Color(0x1FF4EBD9)
-    val cream = Color(0xFFF4EBD9)
-    val latte = Color(0xFFDCC7A6)
-    val caramel = Color(0xFFC89B6D)
-    val text = Color(0xFFF4EBD9)
-    val dim = Color(0xFFA89F8F)
-    val focusText = Color(0xFF1B1712)
+    private val p get() = Look.palette
+    val bg0 get() = p.bg0
+    val bg1 get() = p.bg1
+    val card get() = p.text.copy(alpha = 0.07f)
+    val cardLine get() = p.text.copy(alpha = 0.12f)
+    val cream get() = p.accent
+    val latte get() = p.accent2
+    val caramel get() = p.accent3
+    val text get() = p.text
+    val dim get() = p.dim
+    val focusText get() = p.ink
     val error = Color(0xFFFF8F7E)
     val good = Color(0xFFA6D9A9)
     val warn = Color(0xFFF2C879)
-    val accent = Brush.linearGradient(listOf(cream, latte))
+    val accent get() = Brush.linearGradient(listOf(cream, latte))
 }
 
 private val type = Typography(
@@ -61,25 +63,37 @@ fun TvLockTheme(content: @Composable () -> Unit) {
     }
 }
 
-/** The dark backdrop with two soft colour glows used on every screen. */
+/** The backdrop of every screen: the theme's gradient and glows, or the custom background (dimmed). */
 @Composable
 fun Backdrop(modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Unit) {
     Box(modifier.fillMaxSize().background(Brush.verticalGradient(listOf(C.bg0, C.bg1)))) {
-        Canvas(Modifier.fillMaxSize()) {
-            drawCircle(
-                Brush.radialGradient(
-                    listOf(C.caramel.copy(alpha = 0.16f), Color.Transparent),
-                    center = Offset(size.width * 0.12f, size.height * 0.05f), radius = size.width * 0.45f,
-                ),
-                radius = size.width * 0.45f, center = Offset(size.width * 0.12f, size.height * 0.05f),
-            )
-            drawCircle(
-                Brush.radialGradient(
-                    listOf(C.latte.copy(alpha = 0.08f), Color.Transparent),
-                    center = Offset(size.width * 0.95f, size.height * 1.0f), radius = size.width * 0.4f,
-                ),
-                radius = size.width * 0.4f, center = Offset(size.width * 0.95f, size.height * 1.0f),
-            )
+        if (Look.bgType.isNotEmpty()) {
+            BackgroundMedia(Look.bgType, Look.bgVersion)
+            Box(Modifier.fillMaxSize().background(
+                Brush.verticalGradient(listOf(
+                    Color.Black.copy(alpha = (Look.dim / 100f * 0.85f).coerceIn(0f, 1f)),
+                    Color.Black.copy(alpha = (Look.dim / 100f).coerceIn(0f, 1f)),
+                )),
+            ))
+        } else {
+            val glow1 = C.caramel
+            val glow2 = C.latte
+            Canvas(Modifier.fillMaxSize()) {
+                drawCircle(
+                    Brush.radialGradient(
+                        listOf(glow1.copy(alpha = 0.16f), Color.Transparent),
+                        center = Offset(size.width * 0.12f, size.height * 0.05f), radius = size.width * 0.45f,
+                    ),
+                    radius = size.width * 0.45f, center = Offset(size.width * 0.12f, size.height * 0.05f),
+                )
+                drawCircle(
+                    Brush.radialGradient(
+                        listOf(glow2.copy(alpha = 0.08f), Color.Transparent),
+                        center = Offset(size.width * 0.95f, size.height * 1.0f), radius = size.width * 0.4f,
+                    ),
+                    radius = size.width * 0.4f, center = Offset(size.width * 0.95f, size.height * 1.0f),
+                )
+            }
         }
         content()
     }
