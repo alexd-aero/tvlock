@@ -57,52 +57,100 @@ input,select{font:inherit;color:var(--cream);background:rgba(0,0,0,.25);border:1
 input:focus,select:focus{border-color:var(--caramel)}
 select{appearance:none;-webkit-appearance:none}
 select option{background:#1A1714;color:#F4EBD9}
-/* remote: sized to the phone's screen (JS sets the height), three even rows like Google's */
-#t-remote{display:flex;flex-direction:column;--b:clamp(52px,7.6dvh,74px)}
+/* remote: alex-aero.com glass over a photo (the TV's own background), in TV Lock's warm cream; sized to the screen */
+#t-remote{position:relative;isolation:isolate;display:flex;flex-direction:column;gap:12px;--mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,monospace;
+--glass:blur(18px) saturate(1.3);--gl:rgba(20,17,14,.52);--gl2:rgba(255,248,235,.07);--gline:rgba(255,245,225,.12);--ease:cubic-bezier(.22,1,.36,1)}
 #t-remote[hidden]{display:none}
+.rbg{position:fixed;inset:0;z-index:-1;pointer-events:none;overflow:hidden}
+.rbg-img{position:absolute;inset:-40px;background:radial-gradient(70% 50% at 15% 10%,rgba(200,155,109,.30),transparent 60%),
+radial-gradient(60% 45% at 90% 85%,rgba(220,199,166,.14),transparent 60%),linear-gradient(#14110e,#0b0a08);background-size:cover;background-position:center;
+filter:blur(26px) saturate(1.15);transform:scale(1.06);opacity:0;transition:opacity 1.2s var(--ease)}
+.rbg-img.in{opacity:1}
+.rbg-shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(8,7,5,.55),rgba(8,7,5,.35) 40%,rgba(8,7,5,.72))}
+.gbtn{border:1px solid var(--gline);background:var(--gl);color:var(--cream);backdrop-filter:var(--glass);-webkit-backdrop-filter:var(--glass);
+box-shadow:0 1px 0 rgba(255,255,255,.07) inset,0 18px 40px -24px rgba(0,0,0,.8);display:grid;place-items:center;transition:transform .25s var(--ease),background .2s}
+.gbtn.round{width:52px;height:52px;border-radius:50%;flex:none}
+.gbtn svg{width:22px;height:22px}
+.gbtn:active{transform:scale(.92);background:var(--cream);color:var(--ink)}
 .rtop{display:flex;align-items:center;gap:10px;margin-top:10px;flex:none}
-.tvpill{flex:1;min-width:0;height:var(--b);border:0;border-radius:999px;background:var(--cream);color:var(--ink);display:flex;align-items:center;gap:12px;padding:0 14px 0 18px;text-align:left}
-.tvdot{width:10px;height:10px;border-radius:50%;background:#8b8478;flex:none;box-shadow:0 0 0 3px rgba(0,0,0,.08)}
-.tvdot.on{background:#2e9e5b}.tvdot.off{background:#b3473a}.tvdot.lock{background:#c08a2c}
-.tvpill-t{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.15}
-.tvpill-t b{font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.tvpill-t small{font-size:12px;opacity:.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.tvchev{width:22px;height:22px;flex:none}
-.rcirc{width:var(--b);height:var(--b);border-radius:50%;border:1px solid var(--line);background:rgba(0,0,0,.28);color:var(--cream);display:grid;place-items:center;flex:none;transition:transform .1s,background .15s}
-.rcirc svg{width:44%;height:44%;max-width:30px;max-height:30px}
-#power-btn.awake{color:var(--good)}
-.keyshint{flex:none;margin-top:8px;border:0;background:rgba(242,200,121,.12);color:var(--warn);border-radius:12px;padding:8px 12px;font-size:12px;text-align:left}
-.dialwrap{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:12px 0}
-.dial{position:relative;height:100%;max-height:min(86vw,360px);aspect-ratio:1;max-width:100%;border-radius:50%;touch-action:none;
-background:radial-gradient(circle at 50% 40%,rgba(244,235,217,.05),rgba(0,0,0,.32) 70%);border:1px solid var(--line);
-box-shadow:inset 0 2px 0 rgba(255,255,255,.03),0 30px 60px -30px rgba(0,0,0,.8)}
-.dial-a{position:absolute;color:var(--dim);display:grid;place-items:center;width:20%;height:20%;pointer-events:none;transition:color .1s,transform .1s}
-.dial-a svg{width:70%;height:70%}
-.dial-a.u{top:4%;left:40%}.dial-a.d{bottom:4%;left:40%}.dial-a.l{left:4%;top:40%}.dial-a.r{right:4%;top:40%}
-.dial-a.hit{color:var(--cream);transform:scale(1.18)}
-.dial-ok{position:absolute;left:50%;top:50%;width:39%;height:39%;transform:translate(-50%,-50%);border-radius:50%;pointer-events:none;
-background:radial-gradient(circle at 50% 35%,rgba(244,235,217,.16),rgba(244,235,217,.07));border:1px solid rgba(244,235,217,.14);transition:transform .1s,background .1s}
-.dial-ok.hit{transform:translate(-50%,-50%) scale(.94);background:var(--cream)}
-.dial-dot{position:absolute;width:70px;height:70px;margin:-35px 0 0 -35px;border-radius:50%;pointer-events:none;opacity:0;
-background:radial-gradient(circle,rgba(244,235,217,.45),transparent 70%);transition:opacity .2s}
-.dial-dot.on{opacity:1;transition:none}
-.rgrid{flex:none;display:grid;grid-template-columns:var(--b) 1fr var(--b);gap:12px 14px;align-items:center;padding-bottom:6px}
-.rgrid[hidden]{display:none}
-.rpill{height:var(--b);border-radius:999px;border:1px solid var(--line);background:rgba(0,0,0,.28);color:var(--cream);display:grid;place-items:center;transition:transform .1s,background .15s}
-.rpill svg{width:30px;height:30px}
-.volpair{grid-column:2 / 4;display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.rcirc:active,.rpill:active{transform:scale(.94);background:var(--cream);color:var(--ink)}
-.typebar{flex:none;padding-bottom:6px}
-.typebar small{display:block;color:var(--dim);font-size:13px;margin:0 0 8px 4px}
+.tvpill{flex:1;min-width:0;height:56px;border-radius:999px;border:1px solid var(--gline);background:var(--gl);color:var(--cream);
+backdrop-filter:var(--glass);-webkit-backdrop-filter:var(--glass);box-shadow:0 1px 0 rgba(255,255,255,.07) inset;display:flex;align-items:center;gap:12px;padding:0 16px 0 18px;text-align:left}
+.tvdot{width:9px;height:9px;border-radius:50%;background:#8b8478;flex:none}
+.tvdot.on{background:#3ddc97;box-shadow:0 0 0 4px rgba(61,220,151,.18)}.tvdot.off{background:#ff5a52;box-shadow:0 0 0 4px rgba(255,90,82,.16)}
+.tvdot.lock{background:#f2c14e;box-shadow:0 0 0 4px rgba(242,193,78,.16)}
+.tvpill-t{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.2}
+.tvpill-t b{font-size:16px;font-weight:650;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tvpill-t small{font:500 10.5px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tvchev{width:20px;height:20px;flex:none;opacity:.7}
+#power-btn{width:56px;height:56px}
+#power-btn.awake{color:#3ddc97}
+.keyshint{flex:none;border:1px solid rgba(242,193,78,.25);background:rgba(242,193,78,.08);color:var(--warn);border-radius:14px;padding:8px 12px;font-size:12px;text-align:left}
+/* D-pad | Touchpad: the sliding white pill, like alex-aero.com's nav */
+.modes{position:relative;flex:none;align-self:center;display:flex;padding:4px;border-radius:999px;border:1px solid var(--gline);background:rgba(15,13,11,.45);
+backdrop-filter:var(--glass);-webkit-backdrop-filter:var(--glass)}
+.modes button{position:relative;z-index:1;border:0;background:transparent;color:var(--dim);font:600 13px var(--sans,system-ui);display:flex;align-items:center;gap:7px;
+padding:8px 16px;border-radius:999px;transition:color .25s}
+.modes button svg{width:16px;height:16px}
+.modes button.on{color:var(--ink)}
+.modes-ind{position:absolute;z-index:0;top:4px;height:calc(100% - 8px);left:0;border-radius:999px;background:var(--cream);
+box-shadow:0 8px 24px -10px rgba(244,235,217,.7);transition:transform .55s cubic-bezier(.3,1.25,.4,1),width .55s cubic-bezier(.3,1.25,.4,1)}
+/* the surface */
+.surfwrap{flex:1;min-height:0;display:flex;align-items:center;justify-content:center}
+.surf{position:relative;height:100%;max-height:min(88vw,370px);aspect-ratio:1;max-width:100%;touch-action:none;user-select:none;-webkit-user-select:none;
+border:1px solid var(--gline);background:radial-gradient(circle at 50% 30%,rgba(255,248,235,.09),rgba(255,248,235,.02) 60%),var(--gl);
+backdrop-filter:var(--glass);-webkit-backdrop-filter:var(--glass);box-shadow:0 1px 0 rgba(255,255,255,.08) inset,0 40px 90px -40px rgba(0,0,0,.9);
+transition:border-radius .5s var(--ease),aspect-ratio .5s var(--ease)}
+.surf.dpad{border-radius:50%}
+.surf.pad{border-radius:34px;aspect-ratio:1/1.05;background:radial-gradient(rgba(255,248,235,.13) 1px,transparent 1.5px) 0 0/20px 20px,
+radial-gradient(70% 60% at 50% 40%,rgba(200,155,109,.14),transparent 70%),var(--gl)}
+.wedge{position:absolute;inset:0;border-radius:50%;pointer-events:none;opacity:0;transition:opacity .35s var(--ease);
+background:conic-gradient(from calc(var(--a,0deg) - 45deg),rgba(244,235,217,.20) 0 90deg,transparent 90deg)}
+.wedge.on{opacity:1;transition:none}
+.arw{position:absolute;width:22%;height:22%;display:grid;place-items:center;color:rgba(244,235,217,.55);pointer-events:none;transition:color .2s,transform .25s var(--ease)}
+.arw svg{width:62%;height:62%}
+.arw.u{top:3%;left:39%}.arw.d{bottom:3%;left:39%}.arw.l{left:3%;top:39%}.arw.r{right:3%;top:39%}
+.arw.hit{color:var(--cream);transform:scale(1.2)}
+.okbtn{position:absolute;left:50%;top:50%;width:38%;height:38%;transform:translate(-50%,-50%);border-radius:50%;pointer-events:none;
+display:grid;place-items:center;font:700 15px var(--mono);letter-spacing:.12em;color:var(--ink);
+background:radial-gradient(circle at 50% 30%,#fffaf0,var(--cream) 55%,var(--latte));box-shadow:0 14px 40px -12px rgba(244,235,217,.55),0 1px 0 rgba(255,255,255,.6) inset;
+transition:transform .25s var(--ease),opacity .3s}
+.okbtn.hit{transform:translate(-50%,-50%) scale(.92)}
+.padhint{position:absolute;inset:0;display:none;align-items:flex-end;justify-content:center;padding-bottom:18px;text-align:center;pointer-events:none;
+font:500 10.5px/1.6 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+.surf.pad .arw,.surf.pad .okbtn,.surf.pad .wedge{opacity:0}
+.surf.pad .padhint{display:flex}
+.trail{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;border-radius:inherit}
+/* the dock */
+.dock{flex:none;border:1px solid var(--gline);background:var(--gl);border-radius:28px;padding:10px;display:flex;flex-direction:column;gap:10px;
+backdrop-filter:var(--glass);-webkit-backdrop-filter:var(--glass);box-shadow:0 1px 0 rgba(255,255,255,.07) inset,0 30px 70px -40px rgba(0,0,0,.9)}
+.dock[hidden]{display:none}
+.seg4{display:grid;grid-template-columns:repeat(4,1fr);border-radius:20px;background:var(--gl2);border:1px solid rgba(255,245,225,.07);overflow:hidden}
+.seg4 button{border:0;background:transparent;color:var(--cream);height:60px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+border-left:1px solid rgba(255,245,225,.07);transition:background .2s}
+.seg4 button:first-child{border-left:0}
+.seg4 button svg{width:22px;height:22px}
+.seg4 button span{font:500 9.5px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+.seg4 button:active{background:var(--cream);color:var(--ink)}.seg4 button:active span{color:var(--ink)}
+.drow{display:flex;align-items:center;gap:8px}
+.drow .gbtn.round{width:56px;height:56px;background:var(--gl2);border-color:rgba(255,245,225,.07);box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
+.drow .gbtn.round:active{background:var(--cream);color:var(--ink)}
+.drow .mic{background:var(--cream)!important;color:var(--ink);box-shadow:0 10px 26px -10px rgba(244,235,217,.6)!important}
+.vol{flex:1;height:56px;display:flex;align-items:center;border-radius:999px;background:var(--gl2);border:1px solid rgba(255,245,225,.07);overflow:hidden}
+.vol button{flex:1;height:100%;border:0;background:transparent;color:var(--cream);display:grid;place-items:center;transition:background .15s}
+.vol button svg{width:22px;height:22px}
+.vol button:active{background:var(--cream);color:var(--ink)}
+.vol span{font:600 10px var(--mono);letter-spacing:.16em;color:var(--dim);padding:0 2px}
+.typebar small{display:block;font:500 10.5px var(--mono);letter-spacing:.12em;color:var(--dim);margin:2px 0 8px 6px}
 .typerow{display:flex;gap:10px}
-.typerow input{flex:1;height:58px;font-size:18px;border-radius:29px;padding:0 22px;border-color:rgba(220,199,166,.45)}
-.typerow .btn{height:58px;padding:0 24px}
-.voice{position:fixed;inset:0;z-index:7;background:rgba(10,9,7,.88);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+.typerow input{flex:1;height:56px;font-size:18px;border-radius:28px;padding:0 22px;border-color:rgba(220,199,166,.45);background:rgba(0,0,0,.3)}
+.typerow .btn{height:56px;padding:0 24px}
+.voice{position:fixed;inset:0;z-index:7;background:rgba(10,9,7,.82);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
 display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:30px}
-.voice b{font-size:24px;max-width:90%}.voice small{color:var(--dim)}
+.voice b{font-size:24px;max-width:90%}.voice small{font:500 11px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
 .voice-orb{width:110px;height:110px;border-radius:50%;background:var(--cream);color:var(--ink);display:grid;place-items:center;animation:pulse 1.4s ease-in-out infinite}
 .voice-orb svg{width:48px;height:48px}
 @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(244,235,217,.35)}50%{box-shadow:0 0 0 26px rgba(244,235,217,0)}}
+body.remote-on #tabs{background:rgba(12,10,8,.55)}
 /* TV status sheet */
 .sheetbg{position:fixed;inset:0;z-index:8;background:rgba(0,0,0,.5);display:flex;align-items:flex-end}
 .sheetbg[hidden]{display:none}
@@ -277,45 +325,58 @@ background:var(--cream);color:var(--ink);padding:12px 18px;border-radius:16px;fo
 
   <!-- Remote -->
   <section id="t-remote" class="tab" hidden>
+    <div class="rbg" id="rbg"><div class="rbg-img" id="rbg-img"></div><div class="rbg-shade"></div></div>
+
     <div class="rtop">
       <button class="tvpill" id="tv-pill">
         <span class="tvdot" id="tv-dot"></span>
-        <span class="tvpill-t"><b id="tv-pill-name">TV</b><small id="tv-pill-sub">Connecting…</small></span>
+        <span class="tvpill-t"><b id="tv-pill-name">TV</b><small id="tv-pill-sub">CONNECTING</small></span>
         <svg class="tvchev" viewBox="0 0 24 24"><path d="M7.4 8.6 12 13.2l4.6-4.6L18 10l-6 6-6-6z"/></svg>
       </button>
-      <button class="rcirc" id="power-btn" aria-label="Power"><svg viewBox="0 0 24 24"><path d="M13 3h-2v10h2V3zm4.83 2.17-1.42 1.42A6.92 6.92 0 0 1 19 12a7 7 0 1 1-11.42-5.42L6.17 5.17A8.93 8.93 0 0 0 3 12a9 9 0 0 0 18 0c0-2.74-1.23-5.18-3.17-6.83z"/></svg></button>
+      <button class="gbtn round" id="power-btn" aria-label="Power"><svg viewBox="0 0 24 24"><path d="M13 3h-2v10h2V3zm4.83 2.17-1.42 1.42A6.92 6.92 0 0 1 19 12a7 7 0 1 1-11.42-5.42L6.17 5.17A8.93 8.93 0 0 0 3 12a9 9 0 0 0 18 0c0-2.74-1.23-5.18-3.17-6.83z"/></svg></button>
     </div>
     <button class="keyshint" id="keys-hint" hidden>Volume, typing and Turn on need allowing on the TV once. Tap for how.</button>
 
-    <div class="dialwrap">
-      <div class="dial" id="dial">
-        <span class="dial-a u"><svg viewBox="0 0 24 24"><path d="M7.4 15.4 12 10.8l4.6 4.6L18 14l-6-6-6 6z"/></svg></span>
-        <span class="dial-a d"><svg viewBox="0 0 24 24"><path d="M7.4 8.6 12 13.2l4.6-4.6L18 10l-6 6-6-6z"/></svg></span>
-        <span class="dial-a l"><svg viewBox="0 0 24 24"><path d="M15.4 16.6 10.8 12l4.6-4.6L14 6l-6 6 6 6z"/></svg></span>
-        <span class="dial-a r"><svg viewBox="0 0 24 24"><path d="M8.6 16.6 13.2 12 8.6 7.4 10 6l6 6-6 6z"/></svg></span>
-        <div class="dial-ok" id="dial-ok"></div>
-        <div class="dial-dot" id="dial-dot"></div>
+    <div class="modes" id="modes">
+      <span class="modes-ind" id="modes-ind"></span>
+      <button data-mode="dpad" class="on"><svg viewBox="0 0 24 24"><path d="M15 7.5V2H9v5.5l3 3 3-3zM7.5 9H2v6h5.5l3-3-3-3zM9 16.5V22h6v-5.5l-3-3-3 3zM16.5 9l-3 3 3 3H22V9h-5.5z"/></svg>D-pad</button>
+      <button data-mode="pad"><svg viewBox="0 0 24 24"><path d="M9 11.24V7.5a2.5 2.5 0 0 1 5 0v3.74c1.21-.81 2-2.18 2-3.74C16 5.01 13.99 3 11.5 3S7 5.01 7 7.5c0 1.56.79 2.93 2 3.74zm9.84 4.63-4.54-2.26c-.17-.07-.35-.11-.54-.11H13v-6c0-.83-.67-1.5-1.5-1.5S10 6.67 10 7.5v10.74l-3.43-.72c-.08-.01-.15-.03-.24-.03-.31 0-.59.13-.79.33l-.79.8 4.94 4.94c.27.27.65.44 1.06.44h6.79c.75 0 1.33-.55 1.44-1.28l.75-5.27c.01-.07.02-.14.02-.2 0-.62-.38-1.16-.91-1.38z"/></svg>Touchpad</button>
+    </div>
+
+    <div class="surfwrap">
+      <div class="surf dpad" id="surf">
+        <div class="wedge" id="wedge"></div>
+        <span class="arw u"><svg viewBox="0 0 24 24"><path d="M7.4 15.4 12 10.8l4.6 4.6L18 14l-6-6-6 6z"/></svg></span>
+        <span class="arw d"><svg viewBox="0 0 24 24"><path d="M7.4 8.6 12 13.2l4.6-4.6L18 10l-6 6-6-6z"/></svg></span>
+        <span class="arw l"><svg viewBox="0 0 24 24"><path d="M15.4 16.6 10.8 12l4.6-4.6L14 6l-6 6 6 6z"/></svg></span>
+        <span class="arw r"><svg viewBox="0 0 24 24"><path d="M8.6 16.6 13.2 12 8.6 7.4 10 6l6 6-6 6z"/></svg></span>
+        <div class="okbtn" id="okbtn">OK</div>
+        <div class="padhint">Swipe to move<br>Tap to select</div>
+        <canvas class="trail" id="trail"></canvas>
       </div>
     </div>
 
-    <div id="rbuttons" class="rgrid">
-      <button class="rcirc" data-key="back" aria-label="Back"><svg viewBox="0 0 24 24"><path d="M20 11H7.8l5.6-5.6L12 4l-8 8 8 8 1.4-1.4L7.8 13H20z"/></svg></button>
-      <button class="rpill" data-key="home" aria-label="Home"><svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg></button>
-      <button class="rcirc" id="mic-btn" aria-label="Voice search"><svg viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5.3-3a5.3 5.3 0 0 1-10.6 0H5a7 7 0 0 0 6 6.9V21h2v-3.1a7 7 0 0 0 6-6.9h-1.7z"/></svg></button>
-
-      <button class="rcirc" data-key="apps" aria-label="All apps"><svg viewBox="0 0 24 24"><path d="M4 8h4V4H4v4zm6 12h4v-4h-4v4zm-6 0h4v-4H4v4zm0-6h4v-4H4v4zm6 0h4v-4h-4v4zm6-10v4h4V4h-4zm-6 4h4V4h-4v4zm6 6h4v-4h-4v4zm0 6h4v-4h-4v4z"/></svg></button>
-      <button class="rpill" data-key="playpause" aria-label="Play or pause"><svg viewBox="0 0 24 24"><path d="M3 5v14l9-7zm11 0h2.5v14H14zm4.5 0H21v14h-2.5z"/></svg></button>
-      <button class="rcirc" id="kb-open" aria-label="Keyboard"><svg viewBox="0 0 24 24"><path d="M20 5H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm-9 3h2v2h-2V8zm0 3h2v2h-2v-2zM8 8h2v2H8V8zm0 3h2v2H8v-2zm-1 2H5v-2h2v2zm0-3H5V8h2v2zm9 7H8v-2h8v2zm0-4h-2v-2h2v2zm0-3h-2V8h2v2zm3 3h-2v-2h2v2zm0-3h-2V8h2v2z"/></svg></button>
-
-      <button class="rcirc" data-key="mute" aria-label="Mute"><svg viewBox="0 0 24 24"><path d="M16.5 12A4.5 4.5 0 0 0 14 7.97v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51A8.8 8.8 0 0 0 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3 3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06a8.99 8.99 0 0 0 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4 9.91 6.09 12 8.18V4z"/></svg></button>
-      <div class="volpair">
-        <button class="rpill" data-key="voldown" data-repeat aria-label="Volume down"><svg viewBox="0 0 24 24"><path d="M18.5 12A4.5 4.5 0 0 0 16 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02zM5 9v6h4l5 5V4L9 9H5z"/></svg></button>
-        <button class="rpill" data-key="volup" data-repeat aria-label="Volume up"><svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg></button>
+    <div class="dock" id="rbuttons">
+      <div class="seg4">
+        <button data-key="back"><svg viewBox="0 0 24 24"><path d="M20 11H7.8l5.6-5.6L12 4l-8 8 8 8 1.4-1.4L7.8 13H20z"/></svg><span>Back</span></button>
+        <button data-key="home"><svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg><span>Home</span></button>
+        <button data-key="apps"><svg viewBox="0 0 24 24"><path d="M4 8h4V4H4v4zm6 12h4v-4h-4v4zm-6 0h4v-4H4v4zm0-6h4v-4H4v4zm6 0h4v-4h-4v4zm6-10v4h4V4h-4zm-6 4h4V4h-4v4zm6 6h4v-4h-4v4zm0 6h4v-4h-4v4z"/></svg><span>Apps</span></button>
+        <button id="kb-open"><svg viewBox="0 0 24 24"><path d="M20 5H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm-9 3h2v2h-2V8zm0 3h2v2h-2v-2zM8 8h2v2H8V8zm0 3h2v2H8v-2zm-1 2H5v-2h2v2zm0-3H5V8h2v2zm9 7H8v-2h8v2zm0-4h-2v-2h2v2zm0-3h-2V8h2v2zm3 3h-2v-2h2v2zm0-3h-2V8h2v2z"/></svg><span>Keys</span></button>
+      </div>
+      <div class="drow">
+        <button class="gbtn round" data-key="mute" aria-label="Mute"><svg viewBox="0 0 24 24"><path d="M16.5 12A4.5 4.5 0 0 0 14 7.97v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51A8.8 8.8 0 0 0 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3 3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06a8.99 8.99 0 0 0 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4 9.91 6.09 12 8.18V4z"/></svg></button>
+        <div class="vol">
+          <button data-key="voldown" data-repeat aria-label="Volume down"><svg viewBox="0 0 24 24"><path d="M19 13H5v-2h14v2z"/></svg></button>
+          <span>VOL</span>
+          <button data-key="volup" data-repeat aria-label="Volume up"><svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg></button>
+        </div>
+        <button class="gbtn round" data-key="playpause" aria-label="Play or pause"><svg viewBox="0 0 24 24"><path d="M3 5v14l9-7zm11 0h2.5v14H14zm4.5 0H21v14h-2.5z"/></svg></button>
+        <button class="gbtn round mic" id="mic-btn" aria-label="Voice search"><svg viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5.3-3a5.3 5.3 0 0 1-10.6 0H5a7 7 0 0 0 6 6.9V21h2v-3.1a7 7 0 0 0 6-6.9h-1.7z"/></svg></button>
       </div>
     </div>
 
-    <div class="typebar" id="kb-sheet" hidden>
-      <small id="kb-sub">Typing on the TV</small>
+    <div class="dock typebar" id="kb-sheet" hidden>
+      <small id="kb-sub">TYPING ON THE TV</small>
       <div class="typerow">
         <input id="kb-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" placeholder="Type here…">
         <button class="btn primary" id="kb-done">Done</button>
@@ -544,7 +605,7 @@ function show() {
   // The remote has its own top bar (TV name + power), like Google's.
   document.querySelector('.top').style.display = token && !pairCode && tab === 'remote' ? 'none' : '';
   document.body.classList.toggle('remote-on', !!token && !pairCode && tab === 'remote');
-  if (tab === 'remote') requestAnimationFrame(() => typeof fitRemote === 'function' && fitRemote());
+  if (tab === 'remote') requestAnimationFrame(() => { if (typeof fitRemote === 'function') fitRemote(); if (typeof setRMode === 'function') setRMode(surf.mode, true); });
   if (pairCode) $('#pair-name').value ||= guessName();
 }
 function guessName() {
@@ -654,6 +715,7 @@ function render() {
   $('#keys-hint').hidden = !!tv.keys;
   $('#power-btn').classList.toggle('awake', !!tv.awake);
   renderStatus();
+  remoteBackdrop();
 }
 
 function renderDevices() {
@@ -1004,40 +1066,81 @@ $$('[data-key]').forEach(b => {
     ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => b.addEventListener(ev, stop));
   } else b.addEventListener('click', () => key(b.dataset.key));
 });
-// The dial: tap an arrow or the middle, or swipe anywhere on it (keep dragging for more steps).
+// The surface: a D-pad (tap a side or the middle, or swipe) or a touchpad (swipe to move, tap anywhere to select).
+const surf = { mode: localStorage.getItem('tvlock.rmode2') || 'dpad' };
+function setRMode(m, quiet) {
+  surf.mode = m; localStorage.setItem('tvlock.rmode2', m);
+  $('#surf').className = 'surf ' + m;
+  $$('#modes button').forEach(b => b.classList.toggle('on', b.dataset.mode === m));
+  const on = document.querySelector('#modes button.on'), ind = $('#modes-ind');
+  if (on) { ind.style.width = on.offsetWidth + 'px'; ind.style.transform = `translateX(${on.offsetLeft}px)`; }
+  if (!quiet) buzz();
+}
+$$('#modes button').forEach(b => b.onclick = () => setRMode(b.dataset.mode));
 (() => {
-  const dial = $('#dial'), dot = $('#dial-dot'), ok = $('#dial-ok'), STEP = 46;
-  let lx = 0, ly = 0, sx = 0, sy = 0, t0 = 0, moved = false, down = false;
-  const pos = e => { const r = dial.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top, r.width]; };
-  const hit = cls => { const el = cls === 'ok' ? ok : dial.querySelector('.dial-a.' + cls); el.classList.add('hit'); setTimeout(() => el.classList.remove('hit'), 140); };
-  const cls = { up: 'u', down: 'd', left: 'l', right: 'r' };
-  dial.addEventListener('pointerdown', e => {
-    dial.setPointerCapture(e.pointerId); down = true; moved = false; t0 = Date.now();
-    [sx, sy] = pos(e); lx = sx; ly = sy; dot.style.left = sx + 'px'; dot.style.top = sy + 'px'; dot.classList.add('on');
+  const el = $('#surf'), cv = $('#trail'), ctx = cv.getContext('2d'), wedge = $('#wedge'), ok = $('#okbtn');
+  const STEP = 44, ANG = { up: 0, right: 90, down: 180, left: 270 }, CLS = { up: 'u', down: 'd', left: 'l', right: 'r' };
+  let pts = [], down = false, moved = false, sx = 0, sy = 0, lx = 0, ly = 0, t0 = 0, raf = 0;
+  const pos = e => { const r = el.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top, r.width, r.height]; };
+  const flashDir = dir => {
+    wedge.style.setProperty('--a', ANG[dir] + 'deg'); wedge.classList.add('on'); setTimeout(() => wedge.classList.remove('on'), 120);
+    const a = el.querySelector('.arw.' + CLS[dir]); a.classList.add('hit'); setTimeout(() => a.classList.remove('hit'), 160);
+  };
+  const flashOk = () => { ok.classList.add('hit'); setTimeout(() => ok.classList.remove('hit'), 160); };
+  // the finger trail (touchpad)
+  function draw() {
+    const w = cv.clientWidth, h = cv.clientHeight, d = devicePixelRatio || 1;
+    if (cv.width !== w * d) { cv.width = w * d; cv.height = h * d; }
+    ctx.setTransform(d, 0, 0, d, 0, 0); ctx.clearRect(0, 0, w, h);
+    const now = performance.now(); pts = pts.filter(p => now - p.t < 380);
+    for (const p of pts) {
+      const k = 1 - (now - p.t) / 380;
+      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 34 * k + 6);
+      g.addColorStop(0, `rgba(244,235,217,${0.38 * k})`); g.addColorStop(1, 'rgba(244,235,217,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, 34 * k + 6, 0, 7); ctx.fill();
+    }
+    raf = pts.length || down ? requestAnimationFrame(draw) : 0;
+  }
+  const trail = (x, y) => { pts.push({ x, y, t: performance.now() }); if (!raf) raf = requestAnimationFrame(draw); };
+  el.addEventListener('pointerdown', e => {
+    el.setPointerCapture(e.pointerId); down = true; moved = false; t0 = Date.now();
+    [sx, sy] = pos(e); lx = sx; ly = sy; if (surf.mode === 'pad') trail(sx, sy);
   });
-  dial.addEventListener('pointermove', e => {
+  el.addEventListener('pointermove', e => {
     if (!down) return;
-    const [x, y] = pos(e); dot.style.left = x + 'px'; dot.style.top = y + 'px';
+    const [x, y] = pos(e); if (surf.mode === 'pad') trail(x, y);
     const dx = x - lx, dy = y - ly;
     if (Math.max(Math.abs(dx), Math.abs(dy)) < STEP) return;
     const dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
-    lx = x; ly = y; moved = true; hit(cls[dir]); key(dir);
+    lx = x; ly = y; moved = true; if (surf.mode === 'dpad') flashDir(dir); key(dir);
   });
-  const end = () => {
-    if (!down) return; down = false; dot.classList.remove('on');
+  const end = e => {
+    if (!down) return; down = false;
     if (moved || Date.now() - t0 > 600) return;
-    // A tap: the middle is OK, the ring is the arrow on that side.
-    const [, , w] = [0, 0, dial.getBoundingClientRect().width];
-    const cx = sx - w / 2, cy = sy - w / 2;
-    if (Math.hypot(cx, cy) < w * 0.2) { hit('ok'); key('center'); return; }
+    if (surf.mode === 'pad') { key('center'); return; }
+    const [, , w, h] = pos(e), cx = sx - w / 2, cy = sy - h / 2;
+    if (Math.hypot(cx, cy) < w * 0.19) { flashOk(); key('center'); return; }
     const dir = Math.abs(cx) > Math.abs(cy) ? (cx > 0 ? 'right' : 'left') : (cy > 0 ? 'down' : 'up');
-    hit(cls[dir]); key(dir);
+    flashDir(dir); key(dir);
   };
-  dial.addEventListener('pointerup', end); dial.addEventListener('pointercancel', end);
+  el.addEventListener('pointerup', end); el.addEventListener('pointercancel', () => { down = false; });
 })();
-
-// The TV's name: tap to switch TVs (in the app).
-
+// Behind the remote: the TV's own background, blurred (the warm glow if it has none).
+const rbg = { v: -1 };
+async function remoteBackdrop() {
+  if (!state || !state.tv.look) return;
+  const look = state.tv.look, img = $('#rbg-img');
+  if (rbg.v === look.v + ':' + look.bg) return;
+  rbg.v = look.v + ':' + look.bg;
+  if (!look.bg || look.bg === 'video') { img.style.backgroundImage = ''; img.classList.add('in'); return; }
+  try {
+    const r = await api('/api/look/background'); if (!r.ok) return;
+    const u = URL.createObjectURL(await r.blob());
+    img.classList.remove('in');
+    const pre = new Image(); pre.onload = () => { img.style.backgroundImage = `url(${u})`; img.classList.add('in'); }; pre.src = u;
+  } catch (e) {}
+}
+requestAnimationFrame(() => { setRMode(surf.mode, true); $('#rbg-img').classList.add('in'); });
 
 // Typing: the buttons turn into a text box + Done. The TV's text box mirrors it exactly.
 const kb = { open: false, auto: false, sent: null, timer: null, busy: false, again: false };
@@ -1124,7 +1227,7 @@ function renderStatus() {
   if (!state) return;
   const tv = state.tv, st = tvStatus(tv);
   $('#tv-dot').className = 'tvdot ' + st.cls;
-  $('#tv-pill-sub').textContent = st.text;
+  $('#tv-pill-sub').textContent = st.text.replace(/ \u00b7 /g, ' \u00b7 ');
   $('#st-name').textContent = tv.name;
   $('#st-ver').textContent = 'TV Lock ' + tv.version + (tv.address ? ' · ' + tv.address.replace(/^https?:\/\//, '') : '');
   const set = (id, text, cls) => { const e = $(id); e.textContent = text; e.className = cls || ''; };
