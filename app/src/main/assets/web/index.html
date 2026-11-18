@@ -206,6 +206,12 @@ box-shadow:0 0 0 1px rgba(244,235,217,.14),0 18px 40px -16px rgba(0,0,0,.9)}
 .wpf-grid span{position:absolute;left:0;right:0;bottom:0;padding:14px 6px 4px;font-size:10px;text-align:left;color:#fff;
 background:linear-gradient(transparent,rgba(0,0,0,.75));white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 body.remote-on main{padding-bottom:0}
+.apply3{display:grid;grid-template-columns:auto 1fr 1fr;gap:8px;margin-top:10px}
+.apply3[hidden]{display:none}
+.apply3 .btn{padding:0 8px;font-size:14px;white-space:nowrap;gap:6px}
+.apply3 .btn svg{width:18px;height:18px}
+.rbg-img.sharp{filter:blur(6px) saturate(1.1)}
+.sheet2{touch-action:none}
 /* apps */
 .apps{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-top:14px}
 .app{position:relative;border-radius:20px;background:var(--card);border:1px solid var(--line);overflow:hidden;text-align:left;padding:0;cursor:pointer}
@@ -493,9 +499,10 @@ background:var(--cream);color:var(--ink);padding:12px 18px;border-radius:16px;fo
       <div class="row" style="cursor:default;border:0;padding:12px 0 4px"><div class="t"><b>Darken it</b><span>So the lock screen stays easy to read</span></div>
         <select id="bg-dim" style="width:auto;height:44px"><option value="0">Off</option><option value="20">20%</option><option value="40">40%</option><option value="55">55%</option><option value="70">70%</option><option value="85">85%</option></select></div>
 
-      <div class="grid2" id="bg-apply" hidden style="margin-top:10px">
+      <div class="apply3" id="bg-apply" hidden>
         <button class="btn" id="bg-cancel">Cancel</button>
-        <button class="btn primary" id="bg-use"><svg viewBox="0 0 24 24"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg>Use on TV</button>
+        <button class="btn" id="bg-phone"><svg viewBox="0 0 24 24"><path d="M16 1H8a2.5 2.5 0 0 0-2.5 2.5v17A2.5 2.5 0 0 0 8 23h8a2.5 2.5 0 0 0 2.5-2.5v-17A2.5 2.5 0 0 0 16 1zm-4 21a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm4.5-4h-9V4h9v14z"/></svg>On phone</button>
+        <button class="btn primary" id="bg-use"><svg viewBox="0 0 24 24"><path d="M21 3H3a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h5v2h8v-2h5a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm0 14H3V5h18v12z"/></svg>On TV</button>
       </div>
       <div class="prog" id="bg-prog" hidden><div></div></div>
       <div class="grid2" id="bg-src" style="margin-top:10px">
@@ -523,6 +530,17 @@ background:var(--cream);color:var(--ink);padding:12px 18px;border-radius:16px;fo
         <button class="btn wide" id="wpf-more" hidden style="margin-top:12px">More</button>
       </div>
       <input type="file" id="bg-file" accept="image/*,video/*" hidden>
+    </div>
+    <div class="card">
+      <h2>This phone's remote</h2>
+      <p class="sub small">The background behind the remote on this phone. It's kept on this phone only.</p>
+      <div class="seg2" id="pbg-seg" style="margin-top:14px"><button data-pbg="tv">Same as TV</button><button data-pbg="phone">My picture</button><button data-pbg="plain">Plain</button></div>
+      <p class="small" id="pbg-note" style="margin:10px 2px 0"></p>
+      <div class="grid2" style="margin-top:12px">
+        <button class="btn" id="pbg-up"><svg viewBox="0 0 24 24"><path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"/></svg>Upload</button>
+        <button class="btn" id="pbg-rm">Remove</button>
+      </div>
+      <input type="file" id="pbg-file" accept="image/*" hidden>
     </div>
     <div class="card">
       <h2>TV software</h2>
@@ -1125,22 +1143,6 @@ $$('#modes button').forEach(b => b.onclick = () => setRMode(b.dataset.mode));
   };
   el.addEventListener('pointerup', end); el.addEventListener('pointercancel', () => { down = false; });
 })();
-// Behind the remote: the TV's own background, blurred (the warm glow if it has none).
-const rbg = { v: -1 };
-async function remoteBackdrop() {
-  if (!state || !state.tv.look) return;
-  const look = state.tv.look, img = $('#rbg-img');
-  if (rbg.v === look.v + ':' + look.bg) return;
-  rbg.v = look.v + ':' + look.bg;
-  if (!look.bg || look.bg === 'video') { img.style.backgroundImage = ''; img.classList.add('in'); return; }
-  try {
-    const r = await api('/api/look/background'); if (!r.ok) return;
-    const u = URL.createObjectURL(await r.blob());
-    img.classList.remove('in');
-    const pre = new Image(); pre.onload = () => { img.style.backgroundImage = `url(${u})`; img.classList.add('in'); }; pre.src = u;
-  } catch (e) {}
-}
-requestAnimationFrame(() => { setRMode(surf.mode, true); $('#rbg-img').classList.add('in'); });
 
 // Typing: the buttons turn into a text box + Done. The TV's text box mirrors it exactly.
 const kb = { open: false, auto: false, sent: null, timer: null, busy: false, again: false };
@@ -1277,6 +1279,112 @@ $('#st-power-btn').onclick = async () => {
   } catch (e) { steps([['no', 'Couldn’t reach the TV']]); }
   finally { power.busy = false; poll(); }
 };
+
+// Behind the remote: this phone's own wallpaper, or the TV's background, or the warm glow (blurred, under glass).
+// "This phone's" picture lives only on this phone (IndexedDB), apart from the TV's.
+const PB = {
+  mode() { return localStorage.getItem('tvlock.rbgmode') || 'tv'; },
+  setMode(m) { localStorage.setItem('tvlock.rbgmode', m); },
+  db() {
+    return new Promise((ok, no) => {
+      const r = indexedDB.open('tvlock', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('files');
+      r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error);
+    });
+  },
+  async put(blob) { const d = await PB.db(); await new Promise((ok, no) => { const t = d.transaction('files', 'readwrite'); t.objectStore('files').put(blob, 'remote-bg'); t.oncomplete = ok; t.onerror = () => no(t.error); }); },
+  async get() { const d = await PB.db(); return new Promise(ok => { const q = d.transaction('files').objectStore('files').get('remote-bg'); q.onsuccess = () => ok(q.result || null); q.onerror = () => ok(null); }); },
+  async del() { const d = await PB.db(); await new Promise(ok => { const t = d.transaction('files', 'readwrite'); t.objectStore('files').delete('remote-bg'); t.oncomplete = ok; t.onerror = ok; }); },
+};
+const rbg = { v: -1, url: null };
+function rbgShow(url, sharp) {
+  const img = $('#rbg-img');
+  img.classList.toggle('sharp', !!sharp);
+  if (!url) { img.style.backgroundImage = ''; img.classList.add('in'); return; }
+  img.classList.remove('in');
+  const pre = new Image(); pre.onload = () => { img.style.backgroundImage = `url(${url})`; img.classList.add('in'); }; pre.src = url;
+}
+async function remoteBackdrop(force) {
+  if (!state || !state.tv.look) return;
+  const look = state.tv.look, mode = PB.mode();
+  const key = mode + ':' + (mode === 'tv' ? look.v + ':' + look.bg : '');
+  if (!force && rbg.v === key) return;
+  rbg.v = key;
+  if (rbg.url) { URL.revokeObjectURL(rbg.url); rbg.url = null; }
+  try {
+    if (mode === 'plain') return rbgShow(null);
+    if (mode === 'phone') {
+      const b = await PB.get();
+      if (!b) return rbgShow(null);
+      rbg.url = URL.createObjectURL(b); return rbgShow(rbg.url, true);
+    }
+    if (!look.bg || look.bg === 'video') return rbgShow(null);
+    const r = await api('/api/look/background'); if (!r.ok) return rbgShow(null);
+    rbg.url = URL.createObjectURL(await r.blob()); rbgShow(rbg.url);
+  } catch (e) { rbgShow(null); }
+}
+requestAnimationFrame(() => { setRMode(surf.mode, true); $('#rbg-img').classList.add('in'); });
+
+// Settings: "This phone's remote" background.
+function renderPhoneBg() {
+  const m = PB.mode();
+  $$('#pbg-seg button').forEach(b => b.classList.toggle('on', b.dataset.pbg === m));
+  PB.get().then(b => {
+    $('#pbg-note').textContent = m === 'phone' ? (b ? 'Your own picture, only on this phone.' : 'No picture yet: pick one with Upload or from Wallpapers above.')
+      : m === 'tv' ? 'The same picture as the TV’s lock screen.' : 'The warm glow, no picture.';
+    $('#pbg-rm').hidden = !b;
+  });
+}
+$$('#pbg-seg button').forEach(b => b.onclick = () => { buzz(); PB.setMode(b.dataset.pbg); renderPhoneBg(); remoteBackdrop(true); });
+$('#pbg-up').onclick = () => { $('#pbg-file').value = ''; $('#pbg-file').click(); };
+$('#pbg-file').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  if (!/^image\//.test(f.type)) { toast('Pick a photo or GIF'); return; }
+  await PB.put(f); PB.setMode('phone'); renderPhoneBg(); remoteBackdrop(true); toast('Set as this phone’s remote background');
+};
+$('#pbg-rm').onclick = async () => { buzz(); await PB.del(); if (PB.mode() === 'phone') PB.setMode('tv'); renderPhoneBg(); remoteBackdrop(true); toast('Removed from this phone'); };
+// From the preview: "On this phone" keeps the picture here instead of sending it to the TV.
+$('#bg-phone').onclick = async () => {
+  const p = prevState.pending; if (!p) return; buzz();
+  try {
+    let blob = p.file || null;
+    if (!blob && p.url) blob = await (await fetch(p.url)).blob();
+    if (!blob || !/^image\//.test(blob.type || 'image/')) { toast('Only photos and GIFs can be a phone background'); return; }
+    await PB.put(blob); PB.setMode('phone'); renderPhoneBg(); remoteBackdrop(true);
+    toast('Set as this phone’s remote background'); setPending(null);
+  } catch (e) { toast('That didn’t work'); }
+};
+renderPhoneBg();
+
+// The TV status panel: drag it down to close (or tap outside it).
+(() => {
+  const sheet = document.querySelector('#tv-sheet .sheet2'), bg = $('#tv-sheet');
+  let y0 = null, dy = 0, t0 = 0;
+  const start = e => {
+    if (power.busy) return;
+    // From the handle/header anywhere; from the rest only when it isn't a button.
+    if (e.target.closest('button,a') && !e.target.closest('.grab')) return;
+    y0 = e.clientY; dy = 0; t0 = Date.now(); sheet.style.transition = 'none'; sheet.setPointerCapture(e.pointerId);
+  };
+  const move = e => {
+    if (y0 === null) return;
+    dy = Math.max(0, e.clientY - y0);
+    sheet.style.transform = `translateY(${dy}px)`;
+    bg.style.background = `rgba(0,0,0,${0.5 * Math.max(0, 1 - dy / 400)})`;
+  };
+  const end = () => {
+    if (y0 === null) return;
+    const fast = dy / Math.max(1, Date.now() - t0) > 0.6;
+    y0 = null; sheet.style.transition = 'transform .32s cubic-bezier(.22,1,.36,1)';
+    if (dy > sheet.offsetHeight * 0.28 || (fast && dy > 70)) {
+      sheet.style.transform = 'translateY(110%)';
+      setTimeout(() => { bg.hidden = true; sheet.style.transform = ''; bg.style.background = ''; }, 300);
+    } else { sheet.style.transform = ''; bg.style.background = ''; }
+  };
+  sheet.addEventListener('pointerdown', start);
+  sheet.addEventListener('pointermove', move);
+  sheet.addEventListener('pointerup', end); sheet.addEventListener('pointercancel', end);
+})();
 
 // ---------------------------------------------------------------- apps
 let appsLoaded = false;
