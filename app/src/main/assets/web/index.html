@@ -872,8 +872,11 @@ $('#wpf-link-go').onclick = () => {
 };
 
 // TV updates (the TV downloads and installs them itself)
+let tvUpChecked = false;
 function renderTvUpdate() {
   const u = state.tv.update || { state: 'idle' }, t = $('#tvup-text'), b = $('#tvup-btn');
+  // Ask the TV to look for updates once per visit, so a new version shows up without pressing anything.
+  if (u.state === 'idle' && !tvUpChecked) { tvUpChecked = true; api('/api/update/check', {}).catch(() => {}); }
   const v = state.tv.version;
   const map = {
     idle: ['TV Lock ' + v + ' on the TV.', 'Check for updates', 'check'],

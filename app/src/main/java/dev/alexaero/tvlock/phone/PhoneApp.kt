@@ -806,6 +806,31 @@ private fun RemoteScreen(
         androidx.activity.result.contract.ActivityResultContracts.GetContent(),
     ) { uri -> pending?.onReceiveValue(uri?.let { arrayOf(it) }); pending = null }
     val version = remember { runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull() ?: "" }
+    // The remote page comes from the TV: if the TV's TV Lock is older than this app, offer to update the TV.
+    var tvVersion by remember { mutableStateOf<String?>(null) }
+    var tvUpdating by remember { mutableStateOf(false) }
+    LaunchedEffect(store.host, reload) {
+        tvVersion = withContext(Dispatchers.IO) { runCatching { TvApi(store.host!!).hello()?.optString("version") }.getOrNull() }
+    }
+    val tvOld = tvVersion != null && dev.alexaero.tvlock.Updater.isNewer(version, tvVersion!!)
+    val scopeR = rememberCoroutineScope()
+    fun updateTv() {
+        tvUpdating = true
+        scopeR.launch {
+            withContext(Dispatchers.IO) {
+                runCatching { TvApi(store.host!!, store.token).post("/api/update/install", JSONObject(), 15000) }
+                // Wait for the TV to come back with the new version (up to 3 minutes).
+                repeat(90) {
+                    kotlinx.coroutines.delay(2000)
+                    val v = runCatching { TvApi(store.host!!).hello()?.optString("version") }.getOrNull()
+                    if (v != null && !dev.alexaero.tvlock.Updater.isNewer(version, v)) { tvVersion = v; return@withContext }
+                }
+            }
+            tvUpdating = false
+            reload++
+        }
+    }
+
     // Removed from the TV? Start over instead of showing a remote that can't connect.
     LaunchedEffect(store.host, store.token) {
         val revoked = withContext(Dispatchers.IO) {
@@ -882,6 +907,26 @@ private fun RemoteScreen(
                     },
                     modifier = Modifier.fillMaxSize(),
                 )
+            }
+            if (tvOld && !failed) {
+                Row(
+                    Modifier.align(Alignment.BottomCenter).padding(start = 12.dp, end = 12.dp, bottom = 96.dp).fillMaxWidth()
+                        .clip(RoundedCornerShape(20.dp)).background(Color(0xF22A241D)).border(1.dp, C.latte.copy(alpha = 0.4f), RoundedCornerShape(20.dp))
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(if (tvUpdating) "Updating the TV…" else "Your TV has TV Lock $tvVersion", color = C.text, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                        Text(if (tvUpdating) "It takes about a minute; the remote reloads by itself." else "Update it to get the newest remote ($version).",
+                            color = C.dim, fontSize = 13.sp)
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    if (tvUpdating) CircularProgressIndicator(Modifier.size(26.dp), strokeWidth = 2.5.dp, color = C.latte)
+                    else Box(
+                        Modifier.height(42.dp).clip(RoundedCornerShape(21.dp)).background(C.cream).clickable { updateTv() }.padding(horizontal = 16.dp),
+                        contentAlignment = Alignment.Center,
+                    ) { Text("Update the TV", color = C.focusText, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
+                }
             }
             if (failed) {
                 Page(
