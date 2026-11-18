@@ -1043,26 +1043,86 @@ private fun MeScreen(api: TvApi, profileId: String, done: () -> Unit) {
     }
 }
 
+/** Live status of one saved TV: null = checking, else on/off/locked/unreachable. */
+private data class TvLive(val reach: Boolean, val awake: Boolean = false, val lock: String? = null, val now: String? = null, val version: String? = null)
+
 @Composable
 private fun TvsScreen(store: PhoneStore, back: () -> Unit, open: () -> Unit, add: () -> Unit, none: () -> Unit) {
+    val scope = rememberCoroutineScope()
     var list by remember { mutableStateOf(store.tvs) }
+    val live = remember { mutableStateMapOf<String, TvLive>() }
+    val busy = remember { mutableStateMapOf<String, String>() }
     val current = store.host
+    // Every TV's status, every few seconds while this screen is open.
+    LaunchedEffect(list) {
+        while (true) {
+            list.forEach { tv ->
+                launch(Dispatchers.IO) {
+                    live[tv.host] = runCatching {
+                        val t = TvApi(tv.host, tv.token).get("/api/state", 2500).getJSONObject("tv")
+                        TvLive(true, t.optBoolean("awake"), t.optString("lock").takeIf { t.has("lock") && !t.isNull("lock") },
+                            t.optString("foreground").takeIf { !t.isNull("foreground") && it.isNotEmpty() }, t.optString("version"))
+                    }.getOrDefault(TvLive(false))
+                }
+            }
+            kotlinx.coroutines.delay(4000)
+        }
+    }
     Page(
-        step = "Your TVs", title = "Which TV?",
-        sub = "Every TV with TV Lock that this phone has joined.", onBack = back,
+        step = "Your TVs", title = "Your TVs",
+        sub = "Every TV with TV Lock that this phone has joined. Tap one to open its remote.", onBack = back,
         bottom = { PButton("Add a TV", add, icon = Icons.Rounded.Add, primary = true) },
     ) {
         list.forEach { tv ->
+            val st = live[tv.host]
+            val (dot, line) = when {
+                st == null -> C.dim to "Checking…"
+                !st.reach -> C.error to "Can't reach it: is it plugged in, and are you home?"
+                !st.awake -> Color(0xFFB3473A) to "Off"
+                st.lock != null -> C.warn to (if (st.lock == "settings") "On · settings locked" else "On · locked")
+                else -> C.good to ("On" + (st.now?.let { " · $it" } ?: ""))
+            }
             PCard(highlight = tv.host == current, onClick = { store.select(tv.host); open() }) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Badge(Icons.Rounded.Tv, 48.dp)
                     Spacer(Modifier.width(14.dp))
                     Column(Modifier.weight(1f)) {
                         Text(tv.name, color = C.text, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(tv.host.substringBefore(':') + if (tv.host == current) " · open now" else "", color = C.dim, fontSize = 14.sp)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(9.dp).clip(CircleShape).background(dot))
+                            Spacer(Modifier.width(7.dp))
+                            Text(busy[tv.host] ?: line, color = C.dim, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        Text(tv.host.substringBefore(':') + (st?.version?.let { " · TV Lock $it" } ?: "") + if (tv.host == current) " · open now" else "",
+                            color = C.dim.copy(alpha = 0.7f), fontSize = 12.sp)
+                    }
+                    if (st?.reach == true) {
+                        Box(
+                            Modifier.size(46.dp).clip(CircleShape).background(if (st.awake) C.cream else C.card)
+                                .clickable(enabled = busy[tv.host] == null) {
+                                    val on = !st.awake
+                                    busy[tv.host] = if (on) "Turning on…" else "Turning off…"
+                                    scope.launch {
+                                        val r = withContext(Dispatchers.IO) {
+                                            runCatching { TvApi(tv.host, tv.token).post("/api/power", JSONObject().put("on", on), 20000) }.getOrNull()
+                                        }
+                                        busy[tv.host] = when (r?.optString("verdict")) {
+                                            "confirmed" -> if (on) "On: confirmed by the TV" else "Off: confirmed by the TV"
+                                            "sent" -> if (on) "Turn-on signal received" else "Turn-off signal received"
+                                            "box" -> if (on) "The box is on; the TV didn't answer" else "The box is asleep; the TV may still be on"
+                                            null -> "Couldn't reach it"
+                                            else -> r.optString("error").ifEmpty { "It didn't work" }
+                                        }
+                                        kotlinx.coroutines.delay(4000)
+                                        busy.remove(tv.host)
+                                    }
+                                },
+                            contentAlignment = Alignment.Center,
+                        ) { Icon(Icons.Rounded.PowerSettingsNew, if (st.awake) "Turn off" else "Turn on", tint = if (st.awake) C.focusText else C.text) }
+                        Spacer(Modifier.width(6.dp))
                     }
                     Box(
-                        Modifier.size(44.dp).clip(CircleShape).clickable {
+                        Modifier.size(40.dp).clip(CircleShape).clickable {
                             store.remove(tv.host)
                             list = store.tvs
                             if (list.isEmpty()) none()

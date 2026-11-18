@@ -78,7 +78,9 @@ class LockService : AccessibilityService() {
         while (true) {
             delay(2500)
             if (!power.isInteractive) { wasActive = null; continue }
+            val before = Hdmi.lastActive
             val active = Hdmi.isActiveSource() ?: continue
+            if (before != active) Live.bump()
             if (wasActive == true && !active) {
                 withContext(Dispatchers.Main) { lockAway() }
             }

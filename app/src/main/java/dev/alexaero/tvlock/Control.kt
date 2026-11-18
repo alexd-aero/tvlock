@@ -51,6 +51,7 @@ object Control {
             .put("android", Build.VERSION.RELEASE)
             .put("service", svc != null)
             .put("keys", p.selfAdbOk)
+            .put("input", when (Hdmi.lastActive) { true -> "this"; false -> "other"; null -> JSONObject.NULL })
             .put("editing", LockState.editing.value ?: JSONObject.NULL)
             .put("look", JSONObject().put("theme", Look.palette.id).put("bg", Look.bgType).put("dim", Look.dim)
                 .put("v", Look.bgVersion).put("fit", Look.fit).put("rotate", Look.rotate).put("mirror", Look.mirror)
@@ -244,6 +245,46 @@ object Control {
         ).acquire(3_000)
         if (!pm.isInteractive) SelfAdb.key(ctx, "KEYCODE_WAKEUP")
         return true
+    }
+
+    /**
+     * Turns the TV off (on = false) or on, and checks it really happened: the box's own power state, and the
+     * HDMI-CEC messages (the standby signal sent and taken by the TV; what the TV reports about itself).
+     */
+    fun power(ctx: Context, on: Boolean): JSONObject {
+        val pm = ctx.getSystemService(PowerManager::class.java)
+        val t0 = System.currentTimeMillis()
+        if (on) wake(ctx) else {
+            // Sleep: the box sends the TV <Standby> over HDMI-CEC as it goes to sleep.
+            val ok = SelfAdb.key(ctx, "KEYCODE_SLEEP") ||
+                (Build.VERSION.SDK_INT >= 28 && svc?.let { s -> onMain { s.performGlobalAction(AccessibilityService.GLOBAL_ACTION_LOCK_SCREEN) } } == true)
+            if (!ok) return JSONObject().put("ok", false).put("error", "TV Lock isn't allowed to press keys on this TV yet (TV Lock → Options → Phone remote → Allow).")
+        }
+        var box = pm.isInteractive
+        var msgs = emptyList<Hdmi.Msg>()
+        var said: String? = null
+        var signal = false
+        // Up to 12 s: the box changes state within a second or two; the TV answers over CEC soon after.
+        for (i in 0 until 24) {
+            Thread.sleep(500)
+            box = pm.isInteractive
+            msgs = Hdmi.messagesSince(ctx, t0)
+            said = Hdmi.tvSaid(msgs)
+            signal = if (on) msgs.any { it.sent && it.name in listOf("Text View On", "Image View On", "Active Source") }
+                else msgs.any { it.sent && it.name == "Standby" }
+            val boxDone = box == on
+            if (boxDone && (said == (if (on) "on" else "off") || (i >= 8 && signal))) break
+        }
+        val tvTook = msgs.any { it.sent && it.acked && it.bytes.startsWith("40") && it.name in listOf("Standby", "Text View On", "Image View On") }
+        val verdict = when {
+            box != on -> "failed"
+            said == (if (on) "on" else "off") -> "confirmed"
+            signal -> "sent"
+            else -> "box"
+        }
+        Live.bump()
+        return JSONObject().put("ok", verdict != "failed").put("on", on).put("verdict", verdict)
+            .put("box", box).put("signal", signal).put("tvTook", tvTook).put("tvSaid", said ?: JSONObject.NULL)
     }
 
     /** Types (adds) text in the focused text box on the TV, like a keyboard. */

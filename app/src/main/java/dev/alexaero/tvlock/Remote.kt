@@ -389,6 +389,7 @@ private class Server(private val ctx: Context) : NanoHTTPD(Remote.PORT) {
                         return json(JSONObject().put("ok", true).put("profile", who.json()))
                     }
                     "/api/lock" -> Control.lockNow(ctx)
+                    "/api/power" -> return json(Control.power(ctx, b.optBoolean("on")))
                     "/api/update/check" -> Control.checkUpdate(ctx)
                     "/api/update/install" -> Control.installUpdate(ctx)
                     "/api/key" -> Control.key(ctx, b.optString("key"))
