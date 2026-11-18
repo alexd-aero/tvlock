@@ -181,6 +181,7 @@ class LockService : AccessibilityService() {
         val pkg = e.packageName?.toString() ?: return
         // Focus moving, clicks, scrolling: someone is using the remote.
         LockState.lastActivity = SystemClock.elapsedRealtime()
+        if (pkg != packageName) checkEditing()
         if (e.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
         val cls = e.className?.toString() ?: return
         if (pkg == packageName || !isActivity(pkg, cls)) return
@@ -205,6 +206,20 @@ class LockService : AccessibilityService() {
         ) {
             LockState.current.value = Lock.App(pkg)
         }
+    }
+
+    /** Is a text box focused on the TV? Phones show their keyboard for it (and start from its text). */
+    private var lastEditCheck = 0L
+    private fun checkEditing() {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastEditCheck < 150) return
+        lastEditCheck = now
+        val node = runCatching { findFocus(android.view.accessibility.AccessibilityNodeInfo.FOCUS_INPUT) }.getOrNull()
+        val text = if (node != null && node.isEditable) {
+            val hint = android.os.Build.VERSION.SDK_INT >= 26 && node.isShowingHintText
+            if (hint) "" else node.text?.toString().orEmpty()
+        } else null
+        if (LockState.editing.value != text) LockState.editing.value = text
     }
 
     /** Only real activities count; dialogs, keyboards and toasts also send window events. */

@@ -51,6 +51,7 @@ object Control {
             .put("android", Build.VERSION.RELEASE)
             .put("service", svc != null)
             .put("keys", p.selfAdbOk)
+            .put("editing", LockState.editing.value ?: JSONObject.NULL)
             .put("look", JSONObject().put("theme", Look.palette.id).put("bg", Look.bgType).put("dim", Look.dim)
                 .put("themes", JSONArray().apply { Look.palettes.forEach { put(JSONObject().put("id", it.id).put("name", it.name)
                     .put("bg", String.format("#%06X", it.bg1.toArgb() and 0xFFFFFF))
@@ -127,6 +128,9 @@ object Control {
         when (k) {
             // Real keys first: they reach HDMI-CEC (soundbar/TV volume) and every app.
             "volup", "voldown", "mute", "playpause", "next", "prev", "rewind", "ffwd", "del", "enter", "search" -> {
+                // In a text box, Enter/Delete act on the box itself: a key press could hit the
+                // TV keyboard's highlighted letter instead.
+                if ((k == "enter" || k == "del") && LockState.editing.value != null && editKey(k)) return true
                 if (SelfAdb.key(ctx, realKeys.getValue(k))) return true
                 return when (k) {
                     "playpause" -> media(audio, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
@@ -256,6 +260,27 @@ object Control {
     }
 
     /** Types into the focused text box on the TV (search fields and so on). */
+    /**
+     * Makes the TV's focused text box hold exactly [text] (the phone's keyboard box mirrors it),
+     * so nothing stray can get stuck in it. Real key typing is the fallback for boxes that don't allow it.
+     */
+    fun setText(ctx: Context, text: String): Boolean {
+        val s = svc
+        if (s != null) {
+            val ok = onMain {
+                val node = s.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+                node != null && node.isEditable && node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, Bundle().apply {
+                    putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
+                }).also { if (it) LockState.editing.value = text }
+            }
+            if (ok) return true
+        }
+        // Fallback: clear with real keys and type it again.
+        val cur = LockState.editing.value.orEmpty()
+        if (cur.isNotEmpty()) SelfAdb.shell(ctx, "input keyevent " + List(cur.length + 2) { "KEYCODE_DEL" }.joinToString(" "))
+        return SelfAdb.type(ctx, text)
+    }
+
     fun type(text: String, submit: Boolean): Boolean {
         val s = svc ?: return false
         return onMain {

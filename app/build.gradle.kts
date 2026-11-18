@@ -19,8 +19,8 @@ android {
         // Android TV 7.0+ (older boxes are still common).
         minSdk = 24
         targetSdk = 35
-        versionCode = 10
-        versionName = "1.4.2"
+        versionCode = 11
+        versionName = "1.5.0"
     }
 
     // Two APKs from one codebase, same app ID and key: the TV one has the lock; the phone one is only the

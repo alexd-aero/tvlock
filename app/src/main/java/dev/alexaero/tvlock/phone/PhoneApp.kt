@@ -801,7 +801,8 @@ private fun RemoteScreen(store: PhoneStore, forget: () -> Unit, find: () -> Unit
         if (revoked) forget()
     }
     Backdrop {
-        Box(Modifier.fillMaxSize().systemBarsPadding()) {
+        // imePadding: the page shrinks above the phone keyboard, so the typing panel stays visible.
+        Box(Modifier.fillMaxSize().systemBarsPadding().imePadding()) {
             key(reload, store.host) {
                 AndroidView(
                     factory = { c ->
@@ -810,6 +811,17 @@ private fun RemoteScreen(store: PhoneStore, forget: () -> Unit, find: () -> Unit
                             settings.javaScriptEnabled = true
                             settings.domStorageEnabled = true
                             settings.userAgentString = settings.userAgentString + " TVLockApp/$version"
+                            // Lets the remote page open the phone keyboard when the TV has a text box in focus.
+                            addJavascriptInterface(object {
+                                @android.webkit.JavascriptInterface
+                                fun showKeyboard() {
+                                    post {
+                                        requestFocus()
+                                        c.getSystemService(android.view.inputmethod.InputMethodManager::class.java)
+                                            ?.showSoftInput(this@apply, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
+                                    }
+                                }
+                            }, "TVLockApp")
                             webChromeClient = object : android.webkit.WebChromeClient() {
                                 override fun onShowFileChooser(
                                     v: WebView, cb: android.webkit.ValueCallback<Array<Uri>>, p: FileChooserParams,

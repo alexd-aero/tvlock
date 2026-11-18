@@ -98,10 +98,16 @@ box-shadow:inset 0 0 40px rgba(0,0,0,.35)}
 .media .pp{width:64px;height:64px;background:var(--cream);color:var(--ink);box-shadow:0 10px 30px -10px rgba(200,155,109,.9)}
 .kbbtn{height:56px;border-radius:22px;border:1px solid var(--line);background:var(--card);display:flex;align-items:center;justify-content:center;gap:10px;font-weight:700;transition:transform .1s}
 #power-btn.awake{color:var(--good)}
-.sheet{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;z-index:5}
-.sheet-card{width:100%;background:var(--bg1);border-top:1px solid var(--line);border-radius:28px 28px 0 0;padding:18px 18px calc(18px + env(safe-area-inset-bottom));
-box-shadow:0 -20px 60px rgba(0,0,0,.5)}
-.sheet-top{display:flex;align-items:center;justify-content:space-between;font-size:18px}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:6;background:linear-gradient(rgba(26,23,20,.97),#1A1714);
+backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border-top:1px solid var(--line);border-radius:26px 26px 0 0;
+padding:16px 16px calc(14px + env(safe-area-inset-bottom));box-shadow:0 -24px 60px rgba(0,0,0,.55);transition:bottom .12s}
+.sheet-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.sheet-top b{display:block;font-size:17px}.sheet-top small{color:var(--dim);font-size:13px}
+.kb-row{position:relative}
+.kb-row input{padding-right:52px;height:56px;font-size:18px;border-color:rgba(220,199,166,.45)}
+.kb-x{position:absolute;right:8px;top:8px;width:40px;height:40px;border:0;border-radius:50%;background:transparent;color:var(--dim);display:grid;place-items:center}
+.kb-actions{display:grid;grid-template-columns:1fr 1.4fr;gap:10px;margin-top:10px}
+.kb-actions .btn{min-height:50px}
 /* apps */
 .apps{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-top:14px}
 .app{position:relative;border-radius:20px;background:var(--card);border:1px solid var(--line);overflow:hidden;text-align:left;padding:0;cursor:pointer}
@@ -266,14 +272,17 @@ background:var(--cream);color:var(--ink);padding:12px 18px;border-radius:16px;fo
   </section>
 
   <div class="sheet" id="kb-sheet" hidden>
-    <div class="sheet-card">
-      <div class="sheet-top"><b>Typing on the TV</b><button class="btn mini" id="kb-done">Done</button></div>
-      <p class="small" style="margin:4px 0 12px">Pick a text box on the TV, then type. Each letter appears on the TV as you type.</p>
+    <div class="sheet-top">
+      <div><b>Typing on the TV</b><small id="kb-sub">Pick a text box on the TV first.</small></div>
+      <button class="btn mini" id="kb-done">Done</button>
+    </div>
+    <div class="kb-row">
       <input id="kb-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" placeholder="Type here…">
-      <div class="grid2" style="margin-top:12px">
-        <button class="btn" data-key="del"><svg viewBox="0 0 24 24"><path d="M22 3H7c-.69 0-1.23.35-1.59.88L0 12l5.41 8.11c.36.53.9.89 1.59.89h15a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm-3 12.59L17.59 17 14 13.41 10.41 17 9 15.59 12.59 12 9 8.41 10.41 7 14 10.59 17.59 7 19 8.41 15.41 12 19 15.59z"/></svg>Delete</button>
-        <button class="btn primary" data-key="enter"><svg viewBox="0 0 24 24"><path d="M19 7v4H5.83l3.58-3.59L8 6l-6 6 6 6 1.41-1.41L5.83 13H21V7z"/></svg>Enter</button>
-      </div>
+      <button class="kb-x" data-kb="clear" aria-label="Clear"><svg viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
+    </div>
+    <div class="kb-actions">
+      <button class="btn" data-kb="del"><svg viewBox="0 0 24 24"><path d="M22 3H7c-.69 0-1.23.35-1.59.88L0 12l5.41 8.11c.36.53.9.89 1.59.89h15a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm-3 12.59L17.59 17 14 13.41 10.41 17 9 15.59 12.59 12 9 8.41 10.41 7 14 10.59 17.59 7 19 8.41 15.41 12 19 15.59z"/></svg>Delete</button>
+      <button class="btn primary" data-kb="enter"><svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z"/></svg>Search / Enter</button>
     </div>
   </div>
 
@@ -527,6 +536,7 @@ function render() {
   renderProfiles();
   renderTvUpdate();
   renderLook();
+  kbFollow(tv);
   $('#keys-hint').hidden = !!tv.keys;
   $('#power-btn').classList.toggle('awake', !!tv.awake);
 }
@@ -779,23 +789,62 @@ function setMode(m) {
 $$('#rmode button').forEach(b => b.onclick = () => { buzz(); setMode(b.dataset.mode); });
 setMode(localStorage.getItem('tvlock.rmode') || 'pad');
 
-// Keyboard: what you type here appears on the TV as you type (added letters, deletes, Enter).
-let kbLast = '', kbQueue = Promise.resolve();
-const kbSend = fn => { kbQueue = kbQueue.then(fn).catch(() => {}); };
-$('#kb-open').onclick = () => { buzz(); $('#kb-sheet').hidden = false; kbLast = ''; $('#kb-input').value = ''; setTimeout(() => $('#kb-input').focus(), 50); };
-$('#kb-done').onclick = () => { $('#kb-sheet').hidden = true; $('#kb-input').blur(); };
-$('#kb-sheet').addEventListener('click', e => { if (e.target.id === 'kb-sheet') $('#kb-done').click(); });
-$('#kb-input').addEventListener('input', () => {
-  const now = $('#kb-input').value, last = kbLast;
-  let p = 0; while (p < now.length && p < last.length && now[p] === last[p]) p++;
-  const dels = last.length - p, add = now.slice(p);
-  kbLast = now;
-  for (let i = 0; i < dels; i++) kbSend(() => api('/api/key', { key: 'del' }));
-  if (add) kbSend(() => api('/api/type', { text: add }));
-});
+// Keyboard: the TV's text box mirrors this box. It opens by itself when the TV has a text box in focus.
+const kb = { open: false, auto: false, sent: null, timer: null, busy: false, again: false };
+function kbSync() {
+  clearTimeout(kb.timer);
+  kb.timer = setTimeout(async () => {
+    if (kb.busy) { kb.again = true; return; }
+    kb.busy = true;
+    const text = $('#kb-input').value;
+    try { if (text !== kb.sent) { kb.sent = text; await api('/api/settext', { text }); } } catch (e) {}
+    kb.busy = false;
+    if (kb.again) { kb.again = false; kbSync(); }
+  }, 70);
+}
+function kbOpen(auto) {
+  const editing = state && state.tv.editing;
+  kb.open = true; kb.auto = auto;
+  const i = $('#kb-input');
+  if (editing !== null && editing !== undefined) { i.value = editing; kb.sent = editing; }
+  $('#kb-sub').textContent = (editing !== null && editing !== undefined) ? 'The TV is ready. Type here.' : 'Pick a text box on the TV first.';
+  $('#kb-sheet').hidden = false;
+  i.focus();
+  // In the app, open the phone's keyboard too (browsers only allow that on a tap).
+  if (window.TVLockApp && TVLockApp.showKeyboard) TVLockApp.showKeyboard();
+  placeSheet();
+}
+function kbClose() { kb.open = false; $('#kb-sheet').hidden = true; $('#kb-input').blur(); }
+$('#kb-open').onclick = () => { buzz(); kbOpen(false); };
+$('#kb-done').onclick = kbClose;
+$('#kb-input').addEventListener('input', kbSync);
 $('#kb-input').addEventListener('keydown', e => {
-  if (e.key === 'Enter') { e.preventDefault(); kbSend(() => api('/api/key', { key: 'enter' })); }
+  if (e.key === 'Enter') { e.preventDefault(); clearTimeout(kb.timer); kb.sent = null;
+    api('/api/settext', { text: $('#kb-input').value }).then(() => api('/api/key', { key: 'enter' })); }
 });
+$$('[data-kb]').forEach(b => b.addEventListener('click', () => {
+  buzz(); const i = $('#kb-input');
+  if (b.dataset.kb === 'del') { i.value = i.value.slice(0, -1); kbSync(); }
+  else if (b.dataset.kb === 'clear') { i.value = ''; kbSync(); }
+  else { clearTimeout(kb.timer); api('/api/settext', { text: i.value }).then(() => api('/api/key', { key: 'enter' })); }
+  i.focus();
+}));
+// Follow the TV: open when a text box gets focus there, close when it's gone, take its text when it changes there.
+let kbWasEditing = null;
+function kbFollow(tv) {
+  const ed = tv.editing === undefined ? null : tv.editing;
+  if (ed !== null && kbWasEditing === null && !kb.open && tab === 'remote') kbOpen(true);
+  if (ed === null && kbWasEditing !== null && kb.open && kb.auto) kbClose();
+  if (ed !== null && kb.open && ed !== kb.sent && !kb.busy && document.activeElement !== $('#kb-input')) { $('#kb-input').value = ed; kb.sent = ed; }
+  if (kb.open) $('#kb-sub').textContent = ed !== null ? 'The TV is ready. Type here.' : 'Pick a text box on the TV first.';
+  kbWasEditing = ed;
+}
+// Keep the panel just above the phone's keyboard in browsers (the app resizes the page itself).
+function placeSheet() {
+  const vv = window.visualViewport; if (!vv) return;
+  $('#kb-sheet').style.bottom = Math.max(0, window.innerHeight - vv.height - vv.offsetTop) + 'px';
+}
+if (window.visualViewport) { visualViewport.addEventListener('resize', placeSheet); visualViewport.addEventListener('scroll', placeSheet); }
 
 // ---------------------------------------------------------------- apps
 let appsLoaded = false;

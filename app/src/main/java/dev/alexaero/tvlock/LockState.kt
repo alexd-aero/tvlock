@@ -30,6 +30,9 @@ object LockState {
     val gate = MutableStateFlow(false)
     /** TV Lock's own settings app is open on the TV. */
     val settingsOpen = MutableStateFlow(false)
+    /** The TV has a text box in focus (search etc.): its current text, or null. Phones open their keyboard for it. */
+    val editing = MutableStateFlow<String?>(null)
+
     /** A paired phone pressed Unlock while the settings PIN screen was showing. */
     val gateUnlocks = MutableStateFlow(0)
 
