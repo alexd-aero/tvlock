@@ -261,6 +261,28 @@ object Control {
 
     /** Types into the focused text box on the TV (search fields and so on). */
     /**
+     * Voice search from a phone: into the TV's open text box if there is one, otherwise the TV's own
+     * search (Google TV / Android TV search app), falling back to a web search.
+     */
+    fun voice(ctx: Context, text: String): Boolean {
+        if (text.isBlank()) return false
+        if (LockState.editing.value != null && setText(ctx, text)) return key(ctx, "enter").let { true }
+        return onMain {
+            LockState.grace(1)
+            val tries = listOf(
+                Intent("android.search.action.GLOBAL_SEARCH").setPackage("com.google.android.katniss"),
+                Intent("android.search.action.GLOBAL_SEARCH"),
+                Intent(Intent.ACTION_WEB_SEARCH),
+            )
+            tries.any { i ->
+                runCatching {
+                    ctx.startActivity(i.putExtra(android.app.SearchManager.QUERY, text).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                }.isSuccess
+            }
+        }
+    }
+
+    /**
      * Makes the TV's focused text box hold exactly [text] (the phone's keyboard box mirrors it),
      * so nothing stray can get stuck in it. Real key typing is the fallback for boxes that don't allow it.
      */

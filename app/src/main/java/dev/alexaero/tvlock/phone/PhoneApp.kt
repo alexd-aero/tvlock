@@ -786,6 +786,14 @@ private fun RemoteScreen(store: PhoneStore, forget: () -> Unit, find: () -> Unit
     val ctx = LocalContext.current
     var failed by remember { mutableStateOf(false) }
     var reload by remember { mutableIntStateOf(0) }
+    // Voice search: the phone's own speech recognition (Google's voice screen; the app needs no mic permission).
+    var web by remember { mutableStateOf<WebView?>(null) }
+    val voice = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult(),
+    ) { r ->
+        val text = r.data?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS)?.firstOrNull().orEmpty()
+        web?.evaluateJavascript("window.onVoice && onVoice(" + org.json.JSONObject.quote(text) + ")", null)
+    }
     // Profile photos: the web remote's file picker opens the phone's gallery.
     var pending by remember { mutableStateOf<android.webkit.ValueCallback<Array<Uri>>?>(null) }
     val pick = androidx.activity.compose.rememberLauncherForActivityResult(
@@ -813,6 +821,17 @@ private fun RemoteScreen(store: PhoneStore, forget: () -> Unit, find: () -> Unit
                             settings.userAgentString = settings.userAgentString + " TVLockApp/$version"
                             // Lets the remote page open the phone keyboard when the TV has a text box in focus.
                             addJavascriptInterface(object {
+                                @android.webkit.JavascriptInterface
+                                fun voice() {
+                                    post {
+                                        runCatching {
+                                            voice.launch(android.content.Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+                                                .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_WEB_SEARCH)
+                                                .putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "What do you want to watch?"))
+                                        }.onFailure { evaluateJavascript("toast('This phone has no voice typing')", null) }
+                                    }
+                                }
+
                                 @android.webkit.JavascriptInterface
                                 fun showKeyboard() {
                                     post {
@@ -850,6 +869,7 @@ private fun RemoteScreen(store: PhoneStore, forget: () -> Unit, find: () -> Unit
                                     if (r.isForMainFrame) failed = true
                                 }
                             }
+                            web = this
                             loadUrl("http://${store.host}/#t=${store.token}")
                         }
                     },

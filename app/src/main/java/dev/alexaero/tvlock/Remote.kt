@@ -370,6 +370,7 @@ private class Server(private val ctx: Context) : NanoHTTPD(Remote.PORT) {
                     "/api/key" -> Control.key(ctx, b.optString("key"))
                     "/api/text" -> Control.type(b.optString("text"), b.optBoolean("submit"))
                     "/api/type" -> Control.typeChars(ctx, b.optString("text").take(500))
+                    "/api/voice" -> Control.voice(ctx, b.optString("text").take(200))
                     "/api/settext" -> Control.setText(ctx, b.optString("text").take(500))
                     "/api/look" -> {
                         if (b.has("theme")) Look.setTheme(ctx, b.getString("theme"))
