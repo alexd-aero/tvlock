@@ -85,6 +85,8 @@ private sealed interface P {
     data object Tvs : P
     /** Updates for this phone app. */
     data object AppUpdate : P
+    /** Wallpaper Flare in a built-in browser, with "Use on TV". */
+    data class Wallpapers(val q: String) : P
     /** A new person makes their own profile on a TV that's already set up. */
     data class Create(val tv: FoundTv) : P
 }
@@ -138,7 +140,9 @@ fun PhoneApp(startLink: Uri?) {
             store,
             forget = { store.clear(); reset(if (store.hasTv) P.Tvs else P.Welcome) },
             find = { go(P.Scan) }, tvs = { go(P.Tvs) }, update = { go(P.AppUpdate) },
+            wallpapers = { q -> go(P.Wallpapers(q)) },
         )
+        is P.Wallpapers -> api?.let { WallpaperBrowser(it, s.q, ::back) }
         P.Tvs -> TvsScreen(store, ::back, open = { reset(P.Remote) }, add = { go(P.Scan) }, none = { reset(P.Welcome) })
         P.AppUpdate -> AppUpdateScreen(::back)
     }
@@ -782,7 +786,9 @@ private fun DoneScreen(tvName: String, open: () -> Unit) {
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-private fun RemoteScreen(store: PhoneStore, forget: () -> Unit, find: () -> Unit, tvs: () -> Unit, update: () -> Unit) {
+private fun RemoteScreen(
+    store: PhoneStore, forget: () -> Unit, find: () -> Unit, tvs: () -> Unit, update: () -> Unit, wallpapers: (String) -> Unit,
+) {
     val ctx = LocalContext.current
     var failed by remember { mutableStateOf(false) }
     var reload by remember { mutableIntStateOf(0) }
@@ -858,6 +864,7 @@ private fun RemoteScreen(store: PhoneStore, forget: () -> Unit, find: () -> Unit
                                         if (u.host == "app") when (u.path) {
                                             "/forget" -> forget()
                                             "/tvs" -> tvs()
+                                            "/wallpapers" -> wallpapers(u.getQueryParameter("q").orEmpty())
                                             "/update" -> update()
                                         }
                                         return true
@@ -1222,5 +1229,104 @@ private fun CreateScreen(tv: FoundTv, back: () -> Unit, done: (String) -> Unit) 
             Field(approval, { approval = it.take(32); err = null }, "Their PIN or the TV's code", KeyboardType.NumberPassword, secret = true)
         }
         err?.let { Text(it, color = C.error, fontSize = 14.sp, modifier = Modifier.padding(top = 10.dp)) }
+    }
+}
+
+private val WPF_PAGE = Regex("""^https?://(?:www\.)?wallpaperflare\.com/(?!search|static)([a-z0-9-]+-wallpaper-[a-z0-9]+)(?:/download(?:/[0-9x]+)?)?/?(?:[?#].*)?$""", RegexOption.IGNORE_CASE)
+
+/**
+ * Wallpaper Flare in a real browser on the phone (you pass its checks yourself, like in Chrome).
+ * On a wallpaper's page, "Use on TV" downloads the full picture with this browser's session and sends it to the TV.
+ */
+@SuppressLint("SetJavaScriptEnabled")
+@Composable
+private fun WallpaperBrowser(api: TvApi, q: String, back: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    var web by remember { mutableStateOf<WebView?>(null) }
+    var url by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf<String?>(null) }
+    var done by remember { mutableStateOf(false) }
+    val page = WPF_PAGE.find(url)
+    BackHandler { if (web?.canGoBack() == true) web?.goBack() else back() }
+
+    fun use() {
+        val w = web ?: return
+        val m = page ?: return
+        busy = "Getting the full picture…"
+        // The download page shows the full-size picture as #show_img.
+        w.loadUrl("https://www.wallpaperflare.com/${m.groupValues[1]}/download")
+        var tries = 0
+        fun look() {
+            w.evaluateJavascript("(function(){var i=document.getElementById('show_img');return i?i.src:''})()") { r ->
+                val src = r?.trim('"').orEmpty()
+                if (src.isEmpty() && tries++ < 30) { w.postDelayed({ look() }, 500); return@evaluateJavascript }
+                if (src.isEmpty()) { busy = null; android.widget.Toast.makeText(w.context, "Couldn't find the picture on that page", android.widget.Toast.LENGTH_LONG).show(); return@evaluateJavascript }
+                val ua = w.settings.userAgentString
+                val cookies = android.webkit.CookieManager.getInstance().getCookie(src)
+                busy = "Sending it to the TV…"
+                scope.launch {
+                    val err = withContext(Dispatchers.IO) {
+                        runCatching {
+                            val c = java.net.URL(src).openConnection() as java.net.HttpURLConnection
+                            c.setRequestProperty("User-Agent", ua)
+                            c.setRequestProperty("Referer", "https://www.wallpaperflare.com/")
+                            cookies?.let { c.setRequestProperty("Cookie", it) }
+                            c.connectTimeout = 15000; c.readTimeout = 60000
+                            if (c.responseCode >= 400) error("The picture answered HTTP ${c.responseCode}")
+                            val mime = c.contentType?.substringBefore(';') ?: "image/jpeg"
+                            val bytes = c.inputStream.use { it.readBytes() }
+                            api.upload("/api/look/background", bytes, if (mime.startsWith("image/") || mime.startsWith("video/")) mime else "image/jpeg")
+                        }.exceptionOrNull()
+                    }
+                    busy = null
+                    if (err == null) done = true
+                    else android.widget.Toast.makeText(w.context, err.message ?: "That didn't work", android.widget.Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+        w.postDelayed({ look() }, 800)
+    }
+
+    Backdrop {
+        Column(Modifier.fillMaxSize().systemBarsPadding()) {
+            Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(44.dp).clip(CircleShape).background(C.card).clickable(onClick = back), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Rounded.Close, "Close", tint = C.text)
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Wallpapers", color = C.text, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                    Text(if (page != null) "Tap Use on TV to set this one" else "Open a wallpaper you like", color = C.dim, fontSize = 13.sp)
+                }
+            }
+            Box(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 8.dp).clip(RoundedCornerShape(18.dp))) {
+                AndroidView(
+                    factory = { c ->
+                        WebView(c).apply {
+                            settings.javaScriptEnabled = true
+                            settings.domStorageEnabled = true
+                            android.webkit.CookieManager.getInstance().setAcceptCookie(true)
+                            webViewClient = object : WebViewClient() {
+                                override fun doUpdateVisitedHistory(v: WebView, u: String?, reload: Boolean) { url = u.orEmpty() }
+                                override fun shouldOverrideUrlLoading(v: WebView, r: WebResourceRequest): Boolean =
+                                    !(r.url.host.orEmpty().endsWith("wallpaperflare.com") || r.url.host.orEmpty().endsWith("cloudflare.com"))
+                            }
+                            web = this
+                            loadUrl(if (q.isBlank()) "https://www.wallpaperflare.com/"
+                                else "https://www.wallpaperflare.com/search?wallpaper=" + Uri.encode(q).replace("%20", "+"))
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+            Box(Modifier.padding(16.dp)) {
+                when {
+                    done -> PButton("Done: it's on the TV", back, icon = Icons.Rounded.Check, primary = true)
+                    busy != null -> PButton(busy!!, {}, busy = true, primary = true)
+                    page != null -> PButton("Use on TV", ::use, icon = Icons.Rounded.Tv, primary = true)
+                    else -> PButton("Back to the remote", back)
+                }
+            }
+        }
     }
 }

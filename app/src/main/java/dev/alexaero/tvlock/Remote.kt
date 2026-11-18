@@ -311,8 +311,32 @@ private class Server(private val ctx: Context) : NanoHTTPD(Remote.PORT) {
             "/api/icon" -> Control.icon(ctx, s.parms["pkg"].orEmpty())
                 ?.let { newFixedLengthResponse(Response.Status.OK, "image/png", ByteArrayInputStream(it), it.size.toLong()) }
                 ?: newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "")
+            "/api/wallpapers/search" -> return try {
+                json(Wallpapers.search(s.parms["q"].orEmpty(), s.parms["page"]?.toIntOrNull() ?: 1))
+            } catch (e: Exception) {
+                json(JSONObject().put("error", e.message ?: "Search failed").put("blocked", e.message?.contains("browser check") == true),
+                    Response.Status.SERVICE_UNAVAILABLE)
+            }
+            "/api/wallpapers/thumb" -> return try {
+                val b = Wallpapers.thumb(s.parms["u"].orEmpty())
+                newFixedLengthResponse(Response.Status.OK, "image/jpeg", ByteArrayInputStream(b), b.size.toLong())
+                    .apply { addHeader("Cache-Control", "max-age=86400") }
+            } catch (e: Exception) {
+                newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "")
+            }
             "/api/look/background" -> {
-                if (!post) return newFixedLengthResponse(Response.Status.METHOD_NOT_ALLOWED, MIME_PLAINTEXT, "")
+                if (!post) {
+                    // The current background, for the phone's preview.
+                    val f = Look.bgFile(ctx)
+                    if (Look.bgType.isEmpty() || !f.exists()) return newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "")
+                    val head = f.inputStream().use { i -> ByteArray(16).also { i.read(it) } }
+                    val mime = when (Look.bgType) {
+                        "gif" -> "image/gif"
+                        "video" -> if (head.size > 3 && (head[0].toInt() and 0xff) == 0x1A) "video/webm" else "video/mp4"
+                        else -> if ((head[0].toInt() and 0xff) == 0x89) "image/png" else if (head[0] == 'R'.code.toByte()) "image/webp" else "image/jpeg"
+                    }
+                    return newFixedLengthResponse(Response.Status.OK, mime, f.inputStream(), f.length())
+                }
                 val type = Look.typeOf(s.headers["content-type"])
                     ?: return json(JSONObject().put("error", "Use a photo, GIF or video."), Response.Status.BAD_REQUEST)
                 val len = s.headers["content-length"]?.toLongOrNull() ?: 0L
@@ -375,9 +399,17 @@ private class Server(private val ctx: Context) : NanoHTTPD(Remote.PORT) {
                     "/api/look" -> {
                         if (b.has("theme")) Look.setTheme(ctx, b.getString("theme"))
                         if (b.has("dim")) Look.setDim(ctx, b.getInt("dim"))
+                        if (b.has("fit") || b.has("rotate") || b.has("mirror")) Look.setPlacement(ctx,
+                            b.optString("fit").ifEmpty { null }, if (b.has("rotate")) b.getInt("rotate") else null,
+                            if (b.has("mirror")) b.getBoolean("mirror") else null)
                         true
                     }
                     "/api/look/background/remove" -> { Look.removeBackground(ctx); true }
+                    "/api/look/background/link" -> return try {
+                        json(JSONObject().put("ok", true).put("type", Wallpapers.useLink(ctx, b.optString("url"))))
+                    } catch (e: Exception) {
+                        json(JSONObject().put("error", e.message ?: "That didn't work"), Response.Status.BAD_REQUEST)
+                    }
                     "/api/launch" -> Control.launch(ctx, b.optString("pkg"))
                     "/api/settings" -> Control.settings(ctx, b)
                     "/api/profiles/add" -> {

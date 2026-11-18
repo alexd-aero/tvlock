@@ -31,11 +31,11 @@ class TvApi(val host: String, var token: String? = null) {
         return read(c)
     }
 
-    fun upload(path: String, jpeg: ByteArray): JSONObject {
-        val c = open(path, 8000)
+    fun upload(path: String, jpeg: ByteArray, mime: String = "image/jpeg"): JSONObject {
+        val c = open(path, 30000)
         c.requestMethod = "POST"
         c.doOutput = true
-        c.setRequestProperty("Content-Type", "image/jpeg")
+        c.setRequestProperty("Content-Type", mime)
         c.setFixedLengthStreamingMode(jpeg.size)
         c.outputStream.use { it.write(jpeg) }
         return read(c)

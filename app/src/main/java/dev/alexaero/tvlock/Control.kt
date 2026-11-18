@@ -53,6 +53,7 @@ object Control {
             .put("keys", p.selfAdbOk)
             .put("editing", LockState.editing.value ?: JSONObject.NULL)
             .put("look", JSONObject().put("theme", Look.palette.id).put("bg", Look.bgType).put("dim", Look.dim)
+                .put("v", Look.bgVersion).put("fit", Look.fit).put("rotate", Look.rotate).put("mirror", Look.mirror)
                 .put("themes", JSONArray().apply { Look.palettes.forEach { put(JSONObject().put("id", it.id).put("name", it.name)
                     .put("bg", String.format("#%06X", it.bg1.toArgb() and 0xFFFFFF))
                     .put("accent", String.format("#%06X", it.accent.toArgb() and 0xFFFFFF))) } }))

@@ -56,6 +56,22 @@ object Look {
     var dim by mutableStateOf(55)
         private set
 
+    /** How the background fills the screen: fill (crop), fit or stretch; turned 0/90/180/270°; mirrored. */
+    var fit by mutableStateOf("fill")
+        private set
+    var rotate by mutableStateOf(0)
+        private set
+    var mirror by mutableStateOf(false)
+        private set
+
+    fun setPlacement(ctx: Context, fit: String? = null, rotate: Int? = null, mirror: Boolean? = null) {
+        val p = Prefs(ctx)
+        if (fit != null && fit in listOf("fill", "fit", "stretch")) { p.bgFit = fit; this.fit = fit }
+        if (rotate != null) { val r = ((rotate % 360) + 360) % 360 / 90 * 90; p.bgRotate = r; this.rotate = r }
+        if (mirror != null) { p.bgMirror = mirror; this.mirror = mirror }
+        Live.bump()
+    }
+
     @Volatile private var loaded = false
 
     fun load(ctx: Context) {
@@ -66,6 +82,9 @@ object Look {
         bgType = p.bgType.takeIf { bgFile(ctx).exists() } ?: ""
         bgVersion = p.bgVersion
         dim = p.bgDim
+        fit = p.bgFit
+        rotate = p.bgRotate
+        mirror = p.bgMirror
     }
 
     fun setTheme(ctx: Context, id: String) {
@@ -99,6 +118,19 @@ object Look {
         Prefs(ctx).bgType = ""
         bgType = ""
         Live.bump()
+    }
+
+    /** What a file is, from its first bytes: image / gif / video, or null. */
+    fun sniff(head: ByteArray): String? {
+        fun at(i: Int, vararg b: Int) = b.indices.all { i + it < head.size && (head[i + it].toInt() and 0xff) == b[it] }
+        return when {
+            at(0, 0x47, 0x49, 0x46) -> "gif"
+            at(0, 0xFF, 0xD8, 0xFF) || at(0, 0x89, 0x50, 0x4E, 0x47) -> "image"
+            at(0, 0x52, 0x49, 0x46, 0x46) && at(8, 0x57, 0x45, 0x42, 0x50) -> "image" // WebP
+            at(4, 0x66, 0x74, 0x79, 0x70) -> if (at(8, 0x61, 0x76, 0x69, 0x66) || at(8, 0x68, 0x65, 0x69, 0x63)) "image" else "video" // avif/heic vs mp4/mov
+            at(0, 0x1A, 0x45, 0xDF, 0xA3) -> "video" // webm/mkv
+            else -> null
+        }
     }
 
     /** image / gif / video from an upload's Content-Type (null if unsupported). */

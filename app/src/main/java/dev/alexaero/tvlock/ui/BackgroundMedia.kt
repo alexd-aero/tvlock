@@ -11,7 +11,12 @@ import android.view.Surface
 import android.view.TextureView
 import android.widget.ImageView
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
@@ -25,6 +30,20 @@ import dev.alexaero.tvlock.Look
 /** The custom background: a photo, an animated GIF, or a looping silent video, filling the screen. */
 @Composable
 fun BackgroundMedia(type: String, version: Long) {
+    // Turned sideways: lay it out in a box with width and height swapped, then rotate that box.
+    BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        val side = Look.rotate == 90 || Look.rotate == 270
+        Box(
+            Modifier.requiredSize(if (side) maxHeight else maxWidth, if (side) maxWidth else maxHeight)
+                .graphicsLayer { rotationZ = Look.rotate.toFloat(); scaleX = if (Look.mirror) -1f else 1f },
+        ) { Media(type, version) }
+    }
+}
+
+private fun scaleFor(fit: String) = when (fit) { "fit" -> ContentScale.Fit; "stretch" -> ContentScale.FillBounds; else -> ContentScale.Crop }
+
+@Composable
+private fun Media(type: String, version: Long) {
     val ctx = LocalContext.current
     val file = remember(version) { Look.bgFile(ctx) }
     when (type) {
@@ -33,7 +52,7 @@ fun BackgroundMedia(type: String, version: Long) {
             AndroidView(
                 factory = { c ->
                     ImageView(c).apply {
-                        scaleType = ImageView.ScaleType.CENTER_CROP
+                        scaleType = when (Look.fit) { "fit" -> ImageView.ScaleType.FIT_CENTER; "stretch" -> ImageView.ScaleType.FIT_XY; else -> ImageView.ScaleType.CENTER_CROP }
                         runCatching {
                             val d = android.graphics.ImageDecoder.decodeDrawable(android.graphics.ImageDecoder.createSource(file))
                             setImageDrawable(d)
@@ -41,6 +60,7 @@ fun BackgroundMedia(type: String, version: Long) {
                         }
                     }
                 },
+                update = { it.scaleType = when (Look.fit) { "fit" -> ImageView.ScaleType.FIT_CENTER; "stretch" -> ImageView.ScaleType.FIT_XY; else -> ImageView.ScaleType.CENTER_CROP } },
                 modifier = Modifier.fillMaxSize(),
             )
         } else StillBackground(file.path, version)
@@ -60,7 +80,7 @@ private fun StillBackground(path: String, version: Long) {
             BitmapFactory.decodeFile(path, BitmapFactory.Options().apply { inSampleSize = s })?.asImageBitmap()
         }.getOrNull()
     }
-    if (bmp != null) Image(bmp, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+    if (bmp != null) Image(bmp, null, Modifier.fillMaxSize(), contentScale = scaleFor(Look.fit))
 }
 
 @Composable
@@ -84,22 +104,25 @@ private fun VideoBackground(path: String, version: Long) {
                         }
                     }
 
-                    override fun onSurfaceTextureSizeChanged(st: SurfaceTexture, w: Int, h: Int) = crop(this@apply, player.videoWidth, player.videoHeight)
+                    override fun onSurfaceTextureSizeChanged(st: SurfaceTexture, w: Int, h: Int) =
+                        crop(this@apply, runCatching { player.videoWidth }.getOrDefault(0), runCatching { player.videoHeight }.getOrDefault(0))
                     override fun onSurfaceTextureDestroyed(st: SurfaceTexture): Boolean = true
                     override fun onSurfaceTextureUpdated(st: SurfaceTexture) {}
                 }
             }
         },
+        update = { v -> crop(v, runCatching { player.videoWidth }.getOrDefault(0), runCatching { player.videoHeight }.getOrDefault(0)) },
         modifier = Modifier.fillMaxSize(),
     )
 }
 
-/** Fill the view like CENTER_CROP. */
+/** Fill (crop), fit or stretch the video in the view. */
 private fun crop(v: TextureView, vw: Int, vh: Int) {
     if (vw <= 0 || vh <= 0 || v.width <= 0 || v.height <= 0) return
+    if (Look.fit == "stretch") { v.setTransform(Matrix()); return }
     val sx = v.width.toFloat() / vw
     val sy = v.height.toFloat() / vh
-    val s = maxOf(sx, sy)
+    val s = if (Look.fit == "fit") minOf(sx, sy) else maxOf(sx, sy)
     val m = Matrix()
     m.setScale(vw * s / v.width, vh * s / v.height, v.width / 2f, v.height / 2f)
     v.setTransform(m)

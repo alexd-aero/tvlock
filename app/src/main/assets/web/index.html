@@ -108,6 +108,39 @@ display:flex;flex-direction:column;align-items:center;justify-content:center;gap
 .voice-orb{width:110px;height:110px;border-radius:50%;background:var(--cream);color:var(--ink);display:grid;place-items:center;animation:pulse 1.4s ease-in-out infinite}
 .voice-orb svg{width:48px;height:48px}
 @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(244,235,217,.35)}50%{box-shadow:0 0 0 26px rgba(244,235,217,0)}}
+.tvframe{margin:12px auto 0;max-width:420px}
+.tvscreen{position:relative;aspect-ratio:16/9;border-radius:14px;overflow:hidden;background:#000;border:5px solid #0a0908;
+box-shadow:0 0 0 1px rgba(244,235,217,.14),0 18px 40px -16px rgba(0,0,0,.9)}
+.tvstand{width:30%;height:7px;margin:0 auto;border-radius:0 0 8px 8px;background:linear-gradient(#24201b,#14110e)}
+.tvbg{position:absolute;inset:0;overflow:hidden}
+.tvbg .m{position:absolute;left:50%;top:50%;transform-origin:center}
+.tvdim{position:absolute;inset:0;pointer-events:none}
+.tvui{position:absolute;inset:0;pointer-events:none;font-size:7px;color:var(--pt,#F4EBD9)}
+.tvclock{position:absolute;right:5%;top:6%;text-align:right;line-height:1.2}
+.tvclock b{display:block;font-size:13px;font-weight:300}.tvclock span{display:none}
+.tvlock{position:absolute;left:7%;top:24%;display:flex;flex-direction:column;gap:3px}
+.tvlock i{width:22px;height:22px;border-radius:50%;background:var(--pa,#F4EBD9);margin-bottom:5px}
+.tvlock b{font-size:13px}.tvlock span{opacity:.65}
+.tvlock em{display:flex;gap:5px;margin-top:6px}
+.tvlock u{width:6px;height:6px;border-radius:50%;border:1px solid currentColor;opacity:.7}
+.tvpad{position:absolute;right:9%;top:22%;display:grid;grid-template-columns:repeat(3,15px);gap:4px}
+.tvpad s{width:15px;height:15px;border-radius:50%;background:rgba(255,255,255,.1)}
+.tvpad s:first-child{background:var(--pa,#F4EBD9)}
+.prev-cap{text-align:center;color:var(--dim);font-size:12px;margin:8px 0 0}
+.prev-cap.pending{color:var(--caramel);font-weight:700}
+.place{display:flex;gap:8px;align-items:center;margin-top:14px}
+.seg2{display:flex;background:rgba(0,0,0,.25);border:1px solid var(--line);border-radius:999px;padding:3px;flex:1;min-width:0}
+.seg2 button{flex:1;border:0;background:transparent;border-radius:999px;height:34px;font-weight:700;font-size:13px;color:var(--dim)}
+.seg2 button.on{background:var(--cream);color:var(--ink)}
+.place .btn.mini{width:44px;height:44px;min-height:0;padding:0;border-radius:50%}
+.place .btn.mini svg{width:20px;height:20px}
+.place .btn.on{background:var(--cream);color:var(--ink)}
+.wpf-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.wpf-grid button{position:relative;padding:0;border:2px solid transparent;border-radius:12px;overflow:hidden;aspect-ratio:16/10;background:rgba(0,0,0,.3)}
+.wpf-grid button.on{border-color:var(--cream)}
+.wpf-grid img{width:100%;height:100%;object-fit:cover;display:block}
+.wpf-grid span{position:absolute;left:0;right:0;bottom:0;padding:14px 6px 4px;font-size:10px;text-align:left;color:#fff;
+background:linear-gradient(transparent,rgba(0,0,0,.75));white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* apps */
 .apps{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-top:14px}
 .app{position:relative;border-radius:20px;background:var(--card);border:1px solid var(--line);overflow:hidden;text-align:left;padding:0;cursor:pointer}
@@ -333,15 +366,59 @@ background:var(--cream);color:var(--ink);padding:12px 18px;border-radius:16px;fo
       <h2>TV look</h2>
       <p class="sub small">Colours of the TV app, and a photo, GIF or video behind the lock screen.</p>
       <div class="themes" id="themes"></div>
-      <h2 style="font-size:16px;margin-top:18px">Background</h2>
-      <p class="sub small" id="bg-now">No background</p>
-      <div class="prog" id="bg-prog" hidden><div></div></div>
-      <div class="grid2" style="margin-top:12px">
-        <button class="btn primary" id="bg-up"><svg viewBox="0 0 24 24"><path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"/></svg>Upload</button>
-        <button class="btn" id="bg-rm">Remove</button>
+
+      <h2 style="font-size:16px;margin-top:20px">Background</h2>
+      <div class="tvframe">
+        <div class="tvscreen" id="tv-prev">
+          <div class="tvbg" id="tv-bg"></div>
+          <div class="tvdim" id="tv-dim"></div>
+          <div class="tvui" id="tv-ui">
+            <div class="tvclock"><b id="tv-clock">9:41</b><span>Welcome back</span></div>
+            <div class="tvlock"><i></i><b>Welcome back</b><span>Enter your PIN to use the TV</span><em><u></u><u></u><u></u><u></u></em></div>
+            <div class="tvpad"><s></s><s></s><s></s><s></s><s></s><s></s><s></s><s></s><s></s><s></s><s></s><s></s></div>
+          </div>
+        </div>
+        <div class="tvstand"></div>
       </div>
-      <div class="row" style="cursor:default;border:0;padding-bottom:0"><div class="t"><b>Darken it</b><span>So the lock screen stays easy to read</span></div>
+      <p class="prev-cap" id="prev-cap">This is how the TV's lock screen looks.</p>
+
+      <div class="place">
+        <div class="seg2" id="fit-seg"><button data-fit="fill">Fill</button><button data-fit="fit">Fit</button><button data-fit="stretch">Stretch</button></div>
+        <button class="btn mini" id="bg-rot" title="Turn it a quarter"><svg viewBox="0 0 24 24"><path d="M7.11 8.53 5.7 7.11C4.8 8.27 4.24 9.61 4.07 11h2.02c.14-.87.49-1.72 1.02-2.47zM6.09 13H4.07c.17 1.39.72 2.73 1.62 3.89l1.41-1.42c-.52-.75-.87-1.59-1.01-2.47zm1.01 5.32c1.16.9 2.51 1.44 3.9 1.61V17.9c-.87-.15-1.71-.49-2.46-1.03L7.1 18.32zM13 4.07V1L8.45 5.55 13 10V6.09c2.84.48 5 2.94 5 5.91s-2.16 5.43-5 5.91v2.02c3.95-.49 7-3.85 7-7.93s-3.05-7.44-7-7.93z"/></svg></button>
+        <button class="btn mini" id="bg-mir" title="Mirror"><svg viewBox="0 0 24 24"><path d="M15 21h2v-2h-2v2zm4-12h2V7h-2v2zM3 5v14c0 1.1.9 2 2 2h4v-2H5V5h4V3H5c-1.1 0-2 .9-2 2zm16-2v2h2c0-1.1-.9-2-2-2zm-8 20h2V1h-2v22zm8-6h2v-2h-2v2zM15 5h2V3h-2v2zm4 8h2v-2h-2v2zm0 8c1.1 0 2-.9 2-2h-2v2z"/></svg></button>
+      </div>
+      <div class="row" style="cursor:default;border:0;padding:12px 0 4px"><div class="t"><b>Darken it</b><span>So the lock screen stays easy to read</span></div>
         <select id="bg-dim" style="width:auto;height:44px"><option value="0">Off</option><option value="20">20%</option><option value="40">40%</option><option value="55">55%</option><option value="70">70%</option><option value="85">85%</option></select></div>
+
+      <div class="grid2" id="bg-apply" hidden style="margin-top:10px">
+        <button class="btn" id="bg-cancel">Cancel</button>
+        <button class="btn primary" id="bg-use"><svg viewBox="0 0 24 24"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg>Use on TV</button>
+      </div>
+      <div class="prog" id="bg-prog" hidden><div></div></div>
+      <div class="grid2" id="bg-src" style="margin-top:10px">
+        <button class="btn" id="bg-up"><svg viewBox="0 0 24 24"><path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"/></svg>Upload</button>
+        <button class="btn" id="bg-find"><svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z"/></svg>Wallpapers</button>
+      </div>
+      <button class="btn wide" id="bg-rm" style="margin-top:10px">Remove background</button>
+
+      <div class="wpf" id="wpf" hidden>
+        <div class="typerow" style="margin-top:14px">
+          <input id="wpf-q" placeholder="Aurora, rainy city, misty forest…" enterkeyhint="search" autocomplete="off">
+          <button class="btn primary" id="wpf-go"><svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z"/></svg></button>
+        </div>
+        <p class="small" id="wpf-msg" style="margin:10px 2px 0">Wallpapers from Wallpaper Flare. Tap one to preview it.</p>
+        <div class="wpf-blocked" id="wpf-blocked" hidden>
+          <a class="btn primary wide app-only" id="wpf-app" href="tvlock://app/wallpapers">Search it in the app's browser</a>
+          <a class="btn wide web-only" id="wpf-web" href="https://www.wallpaperflare.com/" target="_blank" rel="noopener">Open Wallpaper Flare</a>
+          <p class="small" style="margin:8px 2px 0">Then save a picture and upload it, or copy its link and paste it here:</p>
+        </div>
+        <div class="typerow" style="margin-top:10px">
+          <input id="wpf-link" placeholder="Or paste a wallpaper's link" autocomplete="off" inputmode="url">
+          <button class="btn" id="wpf-link-go">Preview</button>
+        </div>
+        <div class="wpf-grid" id="wpf-grid"></div>
+        <button class="btn wide" id="wpf-more" hidden style="margin-top:12px">More</button>
+      </div>
       <input type="file" id="bg-file" accept="image/*,video/*" hidden>
     </div>
     <div class="card">
@@ -579,9 +656,15 @@ $$('[data-set]').forEach(p => (p.closest('.row') || p).addEventListener('click',
   await api('/api/settings', { [k]: v }); poll();
 }));
 $('#idle').onchange = async e => { await api('/api/settings', { idleMinutes: +e.target.value }); toast('Saved'); poll(); };
-// TV look: theme + background
+// TV look: theme, and a background with a live preview of the TV's lock screen.
+// Placement (fill/fit/stretch, turn, mirror, darken) goes to the TV right away; a new picture only on "Use on TV".
+const prevState = { pending: null, cur: { v: -1, url: null, mime: '' }, look: null };
+function lookNow() { return prevState.look || (state && state.tv.look) || { fit: 'fill', rotate: 0, mirror: false, dim: 55, bg: '', themes: [] }; }
 function renderLook() {
   const look = state.tv.look; if (!look) return;
+  if (!prevState.look || prevState.look._v !== JSON.stringify([look.fit, look.rotate, look.mirror, look.dim, look.theme, look.bg, look.v])) {
+    prevState.look = { ...look, _v: JSON.stringify([look.fit, look.rotate, look.mirror, look.dim, look.theme, look.bg, look.v]) };
+  }
   const box = $('#themes'), sig = look.theme;
   if (box.dataset.sig !== sig) {
     box.dataset.sig = sig; box.innerHTML = '';
@@ -594,26 +677,153 @@ function renderLook() {
       box.appendChild(b);
     });
   }
-  $('#bg-now').textContent = { image: 'A photo is behind the lock screen.', gif: 'A GIF is behind the lock screen.', video: 'A video is behind the lock screen.' }[look.bg] || 'No background yet.';
-  $('#bg-rm').disabled = !look.bg;
   if (document.activeElement !== $('#bg-dim')) $('#bg-dim').value = String([0, 20, 40, 55, 70, 85].reduce((a, v) => Math.abs(v - look.dim) < Math.abs(a - look.dim) ? v : a, 55));
+  loadCurrentBg(look);
+  drawPreview();
+}
+async function loadCurrentBg(look) {
+  const c = prevState.cur;
+  if (!look.bg) { if (c.url) URL.revokeObjectURL(c.url); c.url = null; c.v = look.v; return; }
+  if (c.v === look.v && c.url) return;
+  c.v = look.v;
+  try {
+    const r = await api('/api/look/background');
+    if (!r.ok) return;
+    const blob = await r.blob();
+    if (c.url) URL.revokeObjectURL(c.url);
+    c.url = URL.createObjectURL(blob); c.mime = blob.type || (look.bg === 'video' ? 'video/mp4' : 'image/jpeg');
+    drawPreview();
+  } catch (e) {}
+}
+function drawPreview() {
+  const look = lookNow(), p = prevState.pending, scr = $('#tv-prev'), bg = $('#tv-bg');
+  const theme = (look.themes || []).find(t => t.id === look.theme) || { bg: '#1A1714', accent: '#F4EBD9' };
+  scr.style.setProperty('--pa', theme.accent); scr.style.setProperty('--pt', theme.accent);
+  const src = p ? p.url : prevState.cur.url, mime = p ? p.mime : prevState.cur.mime;
+  const key = (src || 'none') + '|' + mime;
+  if (bg.dataset.key !== key) {
+    bg.dataset.key = key; bg.innerHTML = '';
+    if (src) {
+      const el = document.createElement(/^video/.test(mime) ? 'video' : 'img');
+      el.className = 'm'; el.src = src;
+      if (el.tagName === 'VIDEO') { el.muted = true; el.loop = true; el.autoplay = true; el.playsInline = true; }
+      el.onload = el.onloadeddata = () => placeMedia();
+      bg.appendChild(el);
+    }
+  }
+  bg.style.background = src ? '#000' : `radial-gradient(60% 80% at 10% 0%,${theme.accent}22,transparent 60%),linear-gradient(${theme.bg},${theme.bg})`;
+  const d = src ? look.dim / 100 : 0;
+  $('#tv-dim').style.background = `linear-gradient(rgba(0,0,0,${d * 0.85}),rgba(0,0,0,${d}))`;
+  placeMedia();
+  $$('#fit-seg button').forEach(b => b.classList.toggle('on', b.dataset.fit === look.fit));
+  $('#bg-mir').classList.toggle('on', !!look.mirror);
+  $('#bg-apply').hidden = !p; $('#bg-src').hidden = !!p;
+  $('#bg-rm').hidden = !!p || !look.bg;
+  const cap = $('#prev-cap');
+  cap.classList.toggle('pending', !!p);
+  cap.textContent = p ? (p.note || 'Preview: not on the TV yet. Press Use on TV.') : look.bg ? 'This is how the TV’s lock screen looks now.' : 'No background yet: the TV uses the theme’s colours.';
+}
+function placeMedia() {
+  const look = lookNow(), el = $('#tv-bg .m'); if (!el) return;
+  const W = $('#tv-bg').clientWidth, H = $('#tv-bg').clientHeight, side = look.rotate === 90 || look.rotate === 270;
+  el.style.width = (side ? H : W) + 'px'; el.style.height = (side ? W : H) + 'px';
+  el.style.objectFit = { fill: 'cover', fit: 'contain', stretch: 'fill' }[look.fit] || 'cover';
+  el.style.transform = `translate(-50%,-50%) rotate(${look.rotate}deg) scaleX(${look.mirror ? -1 : 1})`;
+}
+window.addEventListener('resize', placeMedia);
+async function setPlacement(change) {
+  buzz();
+  prevState.look = { ...lookNow(), ...change, _v: 'local' };
+  drawPreview();
+  try { await api('/api/look', change); } catch (e) { toast('Couldn’t reach the TV'); }
+}
+$$('#fit-seg button').forEach(b => b.onclick = () => setPlacement({ fit: b.dataset.fit }));
+$('#bg-rot').onclick = () => setPlacement({ rotate: (lookNow().rotate + 90) % 360 });
+$('#bg-mir').onclick = () => setPlacement({ mirror: !lookNow().mirror });
+$('#bg-dim').onchange = e => setPlacement({ dim: +e.target.value });
+$('#bg-rm').onclick = async () => { buzz(); await api('/api/look/background/remove', {}); toast('Background removed'); };
+
+// A new picture: preview first.
+function setPending(p) {
+  if (prevState.pending && prevState.pending.own) URL.revokeObjectURL(prevState.pending.url);
+  prevState.pending = p; drawPreview();
+  if (p) $('#tv-prev').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 $('#bg-up').onclick = () => { $('#bg-file').value = ''; $('#bg-file').click(); };
-$('#bg-rm').onclick = async () => { buzz(); await api('/api/look/background/remove', {}); toast('Background removed'); };
-$('#bg-dim').onchange = async e => { await api('/api/look', { dim: +e.target.value }); };
 $('#bg-file').onchange = e => {
   const f = e.target.files[0]; if (!f) return;
   if (!/^(image|video)\//.test(f.type)) { toast('Pick a photo, GIF or video'); return; }
-  // XHR for the progress bar (videos can be big).
-  const x = new XMLHttpRequest(), bar = $('#bg-prog');
-  bar.hidden = false; bar.firstElementChild.style.width = '0';
-  x.open('POST', '/api/look/background');
-  x.setRequestHeader('Authorization', 'Bearer ' + token);
-  x.setRequestHeader('Content-Type', f.type);
-  x.upload.onprogress = ev => { if (ev.lengthComputable) bar.firstElementChild.style.width = (ev.loaded / ev.total * 100) + '%'; };
-  x.onload = () => { bar.hidden = true; toast(x.status === 200 ? 'Background set on the TV' : (JSON.parse(x.responseText || '{}').error || 'Upload failed')); };
-  x.onerror = () => { bar.hidden = true; toast('Upload failed'); };
-  x.send(f);
+  setPending({ kind: 'file', file: f, url: URL.createObjectURL(f), mime: f.type, own: true });
+};
+$('#bg-cancel').onclick = () => { buzz(); setPending(null); };
+$('#bg-use').onclick = () => {
+  const p = prevState.pending; if (!p) return; buzz();
+  const bar = $('#bg-prog');
+  if (p.kind === 'file') {
+    // XHR for the progress bar (videos can be big).
+    const x = new XMLHttpRequest();
+    bar.hidden = false; bar.firstElementChild.style.width = '0';
+    x.open('POST', '/api/look/background');
+    x.setRequestHeader('Authorization', 'Bearer ' + token);
+    x.setRequestHeader('Content-Type', p.file.type);
+    x.upload.onprogress = ev => { if (ev.lengthComputable) bar.firstElementChild.style.width = (ev.loaded / ev.total * 100) + '%'; };
+    x.onload = () => { bar.hidden = true; if (x.status === 200) { toast('Background set on the TV'); setPending(null); poll(); } else toast(JSON.parse(x.responseText || '{}').error || 'Upload failed'); };
+    x.onerror = () => { bar.hidden = true; toast('Upload failed'); };
+    x.send(p.file);
+  } else {
+    $('#bg-use').disabled = true; $('#prev-cap').textContent = 'The TV is downloading it…';
+    api('/api/look/background/link', { url: p.link }).then(r => r.json()).then(j => {
+      $('#bg-use').disabled = false;
+      if (j.ok) { toast('Background set on the TV'); setPending(null); poll(); } else { toast(j.error || 'That didn’t work'); drawPreview(); }
+    }).catch(() => { $('#bg-use').disabled = false; toast('Couldn’t reach the TV'); });
+  }
+};
+
+// Wallpaper Flare: searched by the TV; when it asks for a browser check, the app's browser (or yours) instead.
+const wpf = { q: '', page: 1, busy: false };
+$('#bg-find').onclick = () => { buzz(); const w = $('#wpf'); w.hidden = !w.hidden; if (!w.hidden) $('#wpf-q').focus(); };
+async function wpfSearch(more) {
+  if (wpf.busy) return;
+  const q = $('#wpf-q').value.trim(); if (!q) return;
+  if (!more) { wpf.q = q; wpf.page = 1; $('#wpf-grid').innerHTML = ''; } else wpf.page++;
+  wpf.busy = true; $('#wpf-msg').textContent = 'Searching…'; $('#wpf-blocked').hidden = true;
+  $('#wpf-app').href = 'tvlock://app/wallpapers?q=' + encodeURIComponent(q);
+  $('#wpf-web').href = 'https://www.wallpaperflare.com/search?wallpaper=' + encodeURIComponent(q).replace(/%20/g, '+');
+  try {
+    const r = await api('/api/wallpapers/search?q=' + encodeURIComponent(wpf.q) + '&page=' + wpf.page);
+    const j = await r.json();
+    if (!r.ok) {
+      $('#wpf-msg').textContent = j.blocked ? 'Wallpaper Flare is asking for a browser check right now, so the TV can’t search it.' : (j.error || 'Search failed');
+      $('#wpf-blocked').hidden = !j.blocked; $('#wpf-more').hidden = true; return;
+    }
+    $('#wpf-msg').textContent = j.items.length || more ? 'Tap one to preview it on the TV above.' : 'Nothing found. Try other words.';
+    j.items.forEach(it => {
+      const b = document.createElement('button'); b.innerHTML = '<span></span>';
+      b.querySelector('span').textContent = it.title + (it.w ? ' · ' + it.w + '×' + it.h : '');
+      api('/api/wallpapers/thumb?u=' + encodeURIComponent(it.thumb)).then(r => r.ok ? r.blob() : null).then(blob => {
+        if (!blob) return; const img = new Image(); img.src = URL.createObjectURL(blob); b.prepend(img); b._thumb = img.src;
+      });
+      b.onclick = () => {
+        buzz(); $$('#wpf-grid button').forEach(x => x.classList.toggle('on', x === b));
+        if (!b._thumb) { toast('Still loading…'); return; }
+        setPending({ kind: 'wpf', link: it.url, url: b._thumb, mime: 'image/jpeg', note: 'Preview (small): the TV gets it full size when you press Use on TV.' });
+      };
+      $('#wpf-grid').appendChild(b);
+    });
+    $('#wpf-more').hidden = !j.more;
+  } catch (e) { $('#wpf-msg').textContent = 'Couldn’t reach the TV'; }
+  finally { wpf.busy = false; }
+}
+$('#wpf-go').onclick = () => wpfSearch(false);
+$('#wpf-q').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); wpfSearch(false); } });
+$('#wpf-more').onclick = () => wpfSearch(true);
+$('#wpf-link-go').onclick = () => {
+  const u = $('#wpf-link').value.trim();
+  if (!/^https?:\/\/\S+$/i.test(u)) { toast('Paste an http(s) link'); return; }
+  buzz();
+  const direct = /\.(jpe?g|png|webp|gif)(\?|$)/i.test(u);
+  setPending({ kind: 'link', link: u, url: direct ? u : null, mime: /\.gif/i.test(u) ? 'image/gif' : 'image/jpeg',
+    note: direct ? 'Preview: not on the TV yet. Press Use on TV.' : 'This link’s picture shows here once it’s on the TV. Press Use on TV.' });
 };
 
 // TV updates (the TV downloads and installs them itself)

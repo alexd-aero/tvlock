@@ -29,6 +29,12 @@ class Prefs(ctx: Context) {
         set(v) = sp.edit().putString("bgType", v).apply()
     var bgVersion by long("bgVersion", 0L)
     var bgDim by int("bgDim", 55)
+    /** fill (crop), fit (whole picture) or stretch. */
+    var bgFit: String
+        get() = sp.getString("bgFit", "fill") ?: "fill"
+        set(v) = sp.edit().putString("bgFit", v).apply()
+    var bgRotate by int("bgRotate", 0)
+    var bgMirror by bool("bgMirror", false)
 
     /** TV Lock may press keys on this TV through its own network debugging (volume, typing, waking the TV). */
     var selfAdbOk by bool("selfAdbOk", false)

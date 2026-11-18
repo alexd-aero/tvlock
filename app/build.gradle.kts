@@ -19,8 +19,8 @@ android {
         // Android TV 7.0+ (older boxes are still common).
         minSdk = 24
         targetSdk = 35
-        versionCode = 11
-        versionName = "1.5.0"
+        versionCode = 12
+        versionName = "1.5.1"
     }
 
     // Two APKs from one codebase, same app ID and key: the TV one has the lock; the phone one is only the
@@ -78,6 +78,9 @@ dependencies {
     implementation("com.google.zxing:core:3.5.3")
     // Phone companion: ADB client for automatic TV setup.
     implementation("dev.mobile:dadb:1.2.10")
+
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
 
